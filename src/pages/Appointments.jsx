@@ -5,11 +5,12 @@ import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, Clock, DollarSign, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Clock, DollarSign, X, Calendar } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -27,6 +28,7 @@ export default function Appointments() {
   const urlParams = new URLSearchParams(window.location.search);
   useEffect(() => { if (urlParams.get('action') === 'new') setIsOpen(true); }, []);
 
+  // Queries
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments'],
     queryFn: async () => {
@@ -34,16 +36,18 @@ export default function Appointments() {
       return data || [];
     },
   });
-
   const { data: patients = [] } = useQuery({ queryKey: ['patients'], queryFn: async () => (await supabase.from('patients').select('*')).data || [] });
   const { data: procedures = [] } = useQuery({ queryKey: ['procedures'], queryFn: async () => (await supabase.from('procedures').select('*')).data || [] });
   const { data: materials = [] } = useQuery({ queryKey: ['materials'], queryFn: async () => (await supabase.from('materials').select('*')).data || [] });
 
+  // Mutations
   const createMutation = useMutation({
     mutationFn: async (data) => {
+      // 1. Criar Agendamento
       const { data: appointment, error } = await supabase.from('appointments').insert([data]).select().single();
       if (error) throw error;
 
+      // 2. Baixa de Estoque
       if (data.materials_used?.length > 0) {
         for (const mat of data.materials_used) {
           const { data: material } = await supabase.from('materials').select('*').eq('id', mat.material_id).single();
@@ -59,6 +63,7 @@ export default function Appointments() {
         }
       }
 
+      // 3. Gerar Parcelas
       if (data.payment_method === 'Cartão Crédito' && data.installments > 1) {
         const installmentsArray = [];
         for (let i = 1; i <= data.installments; i++) {
@@ -77,7 +82,7 @@ export default function Appointments() {
       queryClient.invalidateQueries({ queryKey: ['installments'] });
       queryClient.invalidateQueries({ queryKey: ['materials'] });
       setIsOpen(false);
-      toast.success('Atendimento registrado!');
+      toast.success('Agendamento salvo com sucesso!');
     },
   });
 
@@ -103,40 +108,44 @@ export default function Appointments() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Atendimentos" subtitle="Registro de consultas" action={<Button onClick={() => setIsOpen(true)} className="bg-stone-800 hover:bg-stone-900"><Plus className="w-4 h-4 mr-2" />Novo</Button>} />
+      <PageHeader title="Atendimentos" subtitle="Gestão de agenda e procedimentos" action={<Button onClick={() => setIsOpen(true)} className="bg-stone-800 hover:bg-stone-900"><Plus className="w-4 h-4 mr-2" />Novo Agendamento</Button>} />
+      
       <div className="flex flex-wrap gap-3">
         <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(parseInt(v))}><SelectTrigger className="w-36 bg-white"><SelectValue /></SelectTrigger><SelectContent>{months.map((m, i) => <SelectItem key={i} value={i.toString()}>{m}</SelectItem>)}</SelectContent></Select>
         <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}><SelectTrigger className="w-24 bg-white"><SelectValue /></SelectTrigger><SelectContent>{years.map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}</SelectContent></Select>
       </div>
-      <div className="space-y-4">
+
+      <div className="space-y-3">
         {filteredAppointments.map((apt) => (
-          <Card key={apt.id} className="bg-white border-stone-100"><CardContent className="p-4">
-              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+          <Card key={apt.id} className="bg-white border-stone-100 hover:shadow-sm transition-all"><CardContent className="p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-3 mb-3">
-                    <h3 className="font-medium text-stone-800">{apt.patient_name}</h3>
+                  <div className="flex flex-wrap items-center gap-3 mb-2">
+                    <h3 className="font-medium text-stone-800 text-lg">{apt.patient_name}</h3>
                     <Badge className={statusColors[apt.status]}>{apt.status}</Badge>
                   </div>
-                  <div className="flex flex-wrap gap-4 text-sm text-stone-500 mb-3">
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{format(new Date(apt.date + 'T12:00:00'), 'dd/MM/yyyy')} {apt.time}</span>
+                  <div className="flex flex-wrap gap-4 text-sm text-stone-500">
+                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{format(new Date(apt.date + 'T12:00:00'), 'dd/MM/yyyy')} às {apt.time}</span>
                     <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" />R$ {Number(apt.final_value).toFixed(2)}</span>
+                    {apt.payment_method && <span className="flex items-center gap-1 text-xs bg-stone-50 px-2 py-0.5 rounded">{apt.payment_method}</span>}
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setEditingAppointment(apt)}><Edit2 className="w-4 h-4" /></Button>
-                  <Button variant="outline" size="sm" onClick={() => setDeleteAppointment(apt)} className="text-rose-600 hover:bg-rose-50"><Trash2 className="w-4 h-4" /></Button>
+                  <Button variant="outline" size="icon" onClick={() => setEditingAppointment(apt)}><Edit2 className="w-4 h-4" /></Button>
+                  <Button variant="outline" size="icon" className="text-rose-600 hover:bg-rose-50" onClick={() => setDeleteAppointment(apt)}><Trash2 className="w-4 h-4" /></Button>
                 </div>
               </div>
             </CardContent></Card>
         ))}
+        {filteredAppointments.length === 0 && <div className="text-center py-12 text-stone-400">Nenhum atendimento neste mês.</div>}
       </div>
+
       <AppointmentModal open={isOpen || !!editingAppointment} onClose={() => { setIsOpen(false); setEditingAppointment(null); }} appointment={editingAppointment} patients={patients} procedures={procedures} materials={materials} onSave={(data) => { if (editingAppointment) updateMutation.mutate({ id: editingAppointment.id, data }); else createMutation.mutate(data); }} isLoading={createMutation.isPending || updateMutation.isPending} />
-      <AlertDialog open={!!deleteAppointment} onOpenChange={() => setDeleteAppointment(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Excluir?</AlertDialogTitle><AlertDialogDescription>Não pode desfazer.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => deleteMutation.mutate(deleteAppointment.id)} className="bg-rose-600">Excluir</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <AlertDialog open={!!deleteAppointment} onOpenChange={() => setDeleteAppointment(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Excluir?</AlertDialogTitle><AlertDialogDescription>Ação irreversível.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => deleteMutation.mutate(deleteAppointment.id)} className="bg-rose-600">Excluir</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>
   );
 }
 
-// O MODAL QUE FALTAVA
 function AppointmentModal({ open, onClose, appointment, patients, procedures, materials, onSave, isLoading }) {
   const [formData, setFormData] = useState({
     patient_id: '', patient_name: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00', status: 'Agendado',
@@ -177,6 +186,9 @@ function AppointmentModal({ open, onClose, appointment, patients, procedures, ma
     }
   };
 
+  const removeProcedure = (i) => setFormData(prev => ({ ...prev, procedures_performed: prev.procedures_performed.filter((_, idx) => idx !== i) }));
+  const removeMaterial = (i) => setFormData(prev => ({ ...prev, materials_used: prev.materials_used.filter((_, idx) => idx !== i) }));
+
   const totalProcedures = formData.procedures_performed.reduce((sum, p) => sum + (Number(p.price) || 0), 0);
   const finalValue = totalProcedures - ((totalProcedures * (formData.discount_percent || 0)) / 100);
 
@@ -185,31 +197,43 @@ function AppointmentModal({ open, onClose, appointment, patients, procedures, ma
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{appointment ? 'Editar' : 'Novo'} Agendamento</DialogTitle></DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); onSave({ ...formData, total_value: totalProcedures, final_value: finalValue }); }} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div><Label>Paciente</Label><Select value={formData.patient_id} onValueChange={(v) => { const p = patients.find(pat => pat.id === v); setFormData({ ...formData, patient_id: v, patient_name: p ? p.full_name : '' }); }}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{patients.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}</SelectContent></Select></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>Paciente *</Label><Select value={formData.patient_id} onValueChange={(v) => { const p = patients.find(pat => pat.id === v); setFormData({ ...formData, patient_id: v, patient_name: p ? p.full_name : '' }); }}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{patients.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}</SelectContent></Select></div>
             <div className="grid grid-cols-2 gap-2">
               <div><Label>Data</Label><Input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} required /></div>
               <div><Label>Hora</Label><Input type="time" value={formData.time} onChange={e => setFormData({ ...formData, time: e.target.value })} required /></div>
             </div>
           </div>
-          <div className="p-3 border rounded">
-            <Label>Procedimentos</Label>
-            <div className="flex gap-2 mb-2"><Select value={selectedProc} onValueChange={setSelectedProc}><SelectTrigger><SelectValue placeholder="Adicionar" /></SelectTrigger><SelectContent>{procedures.map(p => <SelectItem key={p.id} value={p.id}>{p.name} - R$ {p.default_price}</SelectItem>)}</SelectContent></Select><Button type="button" onClick={addProcedure}><Plus className="w-4 h-4" /></Button></div>
-            {formData.procedures_performed.map((p, i) => <div key={i} className="flex justify-between text-sm bg-stone-50 p-1 mb-1">{p.procedure_name} - R$ {p.price}</div>)}
+
+          <div className="space-y-2 bg-stone-50 p-3 rounded-lg border border-stone-100">
+            <Label className="text-stone-600">Procedimentos</Label>
+            <div className="flex gap-2"><Select value={selectedProc} onValueChange={setSelectedProc}><SelectTrigger><SelectValue placeholder="Adicionar..." /></SelectTrigger><SelectContent>{procedures.map(p => <SelectItem key={p.id} value={p.id}>{p.name} (R$ {p.default_price})</SelectItem>)}</SelectContent></Select><Button type="button" onClick={addProcedure} variant="outline"><Plus className="w-4 h-4" /></Button></div>
+            <div className="space-y-1 mt-2">{formData.procedures_performed.map((p, i) => <div key={i} className="flex justify-between text-sm bg-white p-2 rounded border border-stone-100"><span>{p.procedure_name}</span><div className="flex items-center gap-2"><span>R$ {p.price}</span><X className="w-4 h-4 cursor-pointer text-rose-500" onClick={() => removeProcedure(i)} /></div></div>)}</div>
           </div>
-          <div className="p-3 border rounded">
-            <Label>Materiais (Estoque)</Label>
-            <div className="flex gap-2 mb-2"><Select value={selectedMat} onValueChange={setSelectedMat}><SelectTrigger><SelectValue placeholder="Material" /></SelectTrigger><SelectContent>{materials.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent></Select><Input type="number" className="w-20" value={matQuantity} onChange={e => setMatQuantity(e.target.value)} /><Button type="button" onClick={addMaterial}><Plus className="w-4 h-4" /></Button></div>
-            {formData.materials_used.map((m, i) => <div key={i} className="flex justify-between text-sm bg-stone-50 p-1 mb-1">{m.material_name} ({m.quantity})</div>)}
+
+          <div className="space-y-2 bg-stone-50 p-3 rounded-lg border border-stone-100">
+            <Label className="text-stone-600">Insumos (Baixa no Estoque)</Label>
+            <div className="flex gap-2"><Select value={selectedMat} onValueChange={setSelectedMat}><SelectTrigger className="flex-1"><SelectValue placeholder="Adicionar..." /></SelectTrigger><SelectContent>{materials.map(m => <SelectItem key={m.id} value={m.id}>{m.name} ({m.unit})</SelectItem>)}</SelectContent></Select><Input type="number" className="w-20" value={matQuantity} onChange={e => setMatQuantity(e.target.value)} /><Button type="button" onClick={addMaterial} variant="outline"><Plus className="w-4 h-4" /></Button></div>
+            <div className="space-y-1 mt-2">{formData.materials_used.map((m, i) => <div key={i} className="flex justify-between text-sm bg-white p-2 rounded border border-stone-100"><span>{m.material_name} ({m.quantity})</span><X className="w-4 h-4 cursor-pointer text-rose-500" onClick={() => removeMaterial(i)} /></div>)}</div>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
-            <div><Label>Pagamento</Label><Select value={formData.payment_method} onValueChange={v => setFormData({ ...formData, payment_method: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
-            {formData.payment_method === 'Cartão Crédito' && <div><Label>Parcelas</Label><Input type="number" value={formData.installments} onChange={e => setFormData({ ...formData, installments: e.target.value })} /></div>}
-            <div><Label>Status</Label><Select value={formData.status} onValueChange={v => setFormData({ ...formData, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Agendado">Agendado</SelectItem><SelectItem value="Confirmado">Confirmado</SelectItem><SelectItem value="Realizado">Realizado</SelectItem></SelectContent></Select></div>
+            <div><Label>Pagamento</Label><Select value={formData.payment_method} onValueChange={v => setFormData({ ...formData, payment_method: v })}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
+            {formData.payment_method === 'Cartão Crédito' && <div><Label>Parcelas</Label><Input type="number" min="1" max="12" value={formData.installments} onChange={e => setFormData({ ...formData, installments: parseInt(e.target.value) })} /></div>}
+            <div><Label>Status</Label><Select value={formData.status} onValueChange={v => setFormData({ ...formData, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Agendado">Agendado</SelectItem><SelectItem value="Confirmado">Confirmado</SelectItem><SelectItem value="Realizado">Realizado</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem></SelectContent></Select></div>
             <div><Label>Desconto (%)</Label><Input type="number" value={formData.discount_percent} onChange={e => setFormData({ ...formData, discount_percent: e.target.value })} /></div>
           </div>
-          <div className="text-right font-bold text-lg">Total Final: R$ {finalValue.toFixed(2)}</div>
-          <div className="flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancelar</Button><Button type="submit" disabled={isLoading}>Salvar</Button></div>
+          <div className="sm:col-span-2"><Label>Observações</Label><Textarea value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} rows={2} /></div>
+
+          <div className="flex items-center justify-between pt-2 border-t mt-2">
+            <span className="text-sm font-medium text-stone-500">Total Bruto: R$ {totalProcedures}</span>
+            <span className="text-lg font-bold text-stone-800">Final: R$ {finalValue.toFixed(2)}</span>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button type="submit" disabled={isLoading} className="bg-stone-800 hover:bg-stone-900">{isLoading ? 'Salvando...' : 'Salvar'}</Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
