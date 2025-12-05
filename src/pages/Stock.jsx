@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/supabase.js'; // <-- CONEXÃO SUPABASE
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Plus, Search, Edit2, Trash2, Package, AlertTriangle, 
-  ArrowUpCircle, ArrowDownCircle, History, TrendingDown,
-  Box, Filter
+  ArrowUpCircle, ArrowDownCircle, History, Box, Filter
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -42,18 +41,32 @@ export default function Stock() {
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const queryClient = useQueryClient();
 
+  // --- LISTAR MATERIAIS ---
   const { data: materials = [] } = useQuery({
     queryKey: ['materials'],
-    queryFn: () => base44.entities.Material.list('name'),
+    queryFn: async () => {
+      const { data, error } = await supabase.from('materials').select('*').order('name');
+      if (error) throw error;
+      return data || [];
+    },
   });
 
+  // --- LISTAR MOVIMENTAÇÕES ---
   const { data: movements = [] } = useQuery({
     queryKey: ['stock-movements'],
-    queryFn: () => base44.entities.StockMovement.list('-date'),
+    queryFn: async () => {
+      const { data, error } = await supabase.from('stock_movements').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
   });
 
+  // --- CRIAR PRODUTO ---
   const createMaterialMutation = useMutation({
-    mutationFn: (data) => base44.entities.Material.create(data),
+    mutationFn: async (data) => {
+      const { error } = await supabase.from('materials').insert([data]);
+      if (error) throw error;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials'] });
       setIsProductModalOpen(false);
@@ -61,8 +74,12 @@ export default function Stock() {
     },
   });
 
+  // --- ATUALIZAR PRODUTO ---
   const updateMaterialMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Material.update(id, data),
+    mutationFn: async ({ id, data }) => {
+      const { error } = await supabase.from('materials').update(data).eq('id', id);
+      if (error) throw error;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials'] });
       setEditingProduct(null);
@@ -70,8 +87,12 @@ export default function Stock() {
     },
   });
 
+  // --- DELETAR PRODUTO ---
   const deleteMaterialMutation = useMutation({
-    mutationFn: (id) => base44.entities.Material.delete(id),
+    mutationFn: async (id) => {
+      const { error } = await supabase.from('materials').delete().eq('id', id);
+      if (error) throw error;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials'] });
       setDeleteProduct(null);
@@ -79,32 +100,40 @@ export default function Stock() {
     },
   });
 
+  // --- CRIAR MOVIMENTAÇÃO (LÓGICA COMPLEXA) ---
   const createMovementMutation = useMutation({
     mutationFn: async (data) => {
       const material = materials.find(m => m.id === data.material_id);
-      const previousStock = material?.stock_quantity || 0;
+      const previousStock = Number(material?.stock_quantity) || 0;
       let newStock = previousStock;
       
+      const qtd = Number(data.quantity);
+
       if (data.type === 'entrada') {
-        newStock = previousStock + data.quantity;
+        newStock = previousStock + qtd;
       } else if (data.type === 'saida') {
-        newStock = previousStock - data.quantity;
+        newStock = previousStock - qtd;
       } else {
-        newStock = data.quantity; // ajuste
+        newStock = qtd; // ajuste
       }
 
-      await base44.entities.StockMovement.create({
+      // 1. Registra a movimentação no histórico
+      const { error: moveError } = await supabase.from('stock_movements').insert([{
         ...data,
         material_name: material?.name,
         previous_stock: previousStock,
         new_stock: newStock,
-        cost_per_unit: material?.cost_per_unit || 0,
-        total_cost: (material?.cost_per_unit || 0) * data.quantity,
-      });
+        total_cost: (Number(material?.cost_per_unit) || 0) * qtd,
+      }]);
+      
+      if (moveError) throw moveError;
 
-      await base44.entities.Material.update(data.material_id, {
+      // 2. Atualiza o saldo do produto
+      const { error: matError } = await supabase.from('materials').update({
         stock_quantity: newStock,
-      });
+      }).eq('id', data.material_id);
+
+      if (matError) throw matError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials'] });
@@ -127,7 +156,7 @@ export default function Stock() {
   );
 
   const totalStockValue = materials.reduce((sum, m) => 
-    sum + ((m.stock_quantity || 0) * (m.cost_per_unit || 0)), 0
+    sum + ((Number(m.stock_quantity) || 0) * (Number(m.cost_per_unit) || 0)), 0
   );
 
   return (
@@ -301,7 +330,7 @@ export default function Stock() {
                             <strong className={isLowStock ? 'text-amber-600' : 'text-stone-700'}>{material.stock_quantity || 0}</strong> {material.unit || 'un'}
                           </span>
                           <span className="hidden sm:inline">Mín: {material.minimum_stock || 0} {material.unit || 'un'}</span>
-                          <span>R$ {(material.cost_per_unit || 0).toFixed(2)}<span className="hidden sm:inline">/{material.unit || 'un'}</span></span>
+                          <span>R$ {(Number(material.cost_per_unit) || 0).toFixed(2)}<span className="hidden sm:inline">/{material.unit || 'un'}</span></span>
                         </div>
                       </div>
                       <div className="flex gap-1 sm:gap-2 flex-shrink-0">
@@ -372,20 +401,14 @@ export default function Stock() {
                         </Badge>
                       </div>
                       <div className="text-xs sm:text-sm text-stone-500 truncate">
-                        {format(new Date(mov.date), 'dd/MM/yyyy')}
-                        {mov.patient_name && <span className="hidden sm:inline"> • Paciente: {mov.patient_name}</span>}
+                        {format(new Date(mov.created_at), 'dd/MM/yyyy')}
                         {mov.reason && <span className="hidden sm:inline"> • {mov.reason}</span>}
-                      </div>
-                      {/* Mobile: segunda linha com info extra */}
-                      <div className="sm:hidden text-xs text-stone-400 mt-0.5 truncate">
-                        {mov.patient_name && <span>{mov.patient_name}</span>}
-                        {mov.reason && <span> • {mov.reason}</span>}
                       </div>
                     </div>
                     <div className="text-right text-xs sm:text-sm flex-shrink-0">
                       <p className="text-stone-500">{mov.previous_stock} → {mov.new_stock}</p>
                       {mov.total_cost > 0 && (
-                        <p className="text-stone-600 font-medium">R$ {mov.total_cost.toFixed(2)}</p>
+                        <p className="text-stone-600 font-medium">R$ {Number(mov.total_cost).toFixed(2)}</p>
                       )}
                     </div>
                   </div>
@@ -457,6 +480,7 @@ export default function Stock() {
   );
 }
 
+// MANTIVE OS MODAIS IGUAIS, SÓ AJUSTEI PARA USAR FLOAT NO SUBMIT
 function ProductModal({ open, onClose, product, onSave, isLoading }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -716,9 +740,9 @@ function MovementModal({ open, onClose, materials, selectedMaterial, onSave, isL
                   formData.type === 'saida' ? 'text-rose-600' : 'text-blue-600'
                 }>
                   {formData.type === 'entrada' 
-                    ? (selected.stock_quantity || 0) + parseFloat(formData.quantity || 0)
+                    ? (parseFloat(selected.stock_quantity) || 0) + parseFloat(formData.quantity || 0)
                     : formData.type === 'saida'
-                    ? (selected.stock_quantity || 0) - parseFloat(formData.quantity || 0)
+                    ? (parseFloat(selected.stock_quantity) || 0) - parseFloat(formData.quantity || 0)
                     : parseFloat(formData.quantity || 0)
                   }
                 </strong> {selected.unit || 'un'}
