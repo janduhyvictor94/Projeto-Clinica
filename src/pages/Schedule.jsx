@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/supabase.js';
 import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronLeft, ChevronRight, Plus, Clock, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
@@ -16,9 +16,18 @@ export default function Schedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
 
+  // --- BUSCANDO AGENDAMENTOS NO SUPABASE ---
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments'],
-    queryFn: () => base44.entities.Appointment.list('-date'),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .order('date', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    },
   });
 
   const monthStart = startOfMonth(currentDate);
@@ -34,7 +43,13 @@ export default function Schedule() {
   }
 
   const getAppointmentsForDay = (date) => {
-    return appointments.filter(a => isSameDay(new Date(a.date), date));
+    // Ajuste de fuso horário simples para garantir comparação correta da data
+    return appointments.filter(a => {
+        if (!a.date) return false;
+        // O Supabase retorna YYYY-MM-DD, então criamos a data localmente para comparar
+        const appointmentDate = new Date(a.date + 'T00:00:00');
+        return isSameDay(appointmentDate, date);
+    });
   };
 
   const statusColors = {
@@ -128,7 +143,7 @@ export default function Schedule() {
                     {dayAppointments.slice(0, 3).map((apt) => (
                       <div
                         key={apt.id}
-                        className={`text-xs px-2 py-1 rounded truncate ${statusColors[apt.status]} text-white`}
+                        className={`text-xs px-2 py-1 rounded truncate ${statusColors[apt.status] || 'bg-gray-400'} text-white`}
                       >
                         {apt.time && <span className="mr-1">{apt.time}</span>}
                         {apt.patient_name?.split(' ')[0]}
@@ -186,7 +201,7 @@ export default function Schedule() {
                       {dayAppointments.slice(0, 3).map((apt) => (
                         <div
                           key={apt.id}
-                          className={`w-1.5 h-1.5 rounded-full ${statusColors[apt.status]}`}
+                          className={`w-1.5 h-1.5 rounded-full ${statusColors[apt.status] || 'bg-gray-400'}`}
                         />
                       ))}
                     </div>
@@ -205,28 +220,28 @@ export default function Schedule() {
           Agendamentos do mês
         </h3>
         {appointments
-          .filter(a => isSameMonth(new Date(a.date), currentDate))
+          .filter(a => {
+             if(!a.date) return false;
+             return isSameMonth(new Date(a.date + 'T00:00:00'), currentDate);
+          })
           .sort((a, b) => new Date(a.date) - new Date(b.date))
           .map((apt) => (
             <div
               key={apt.id}
               className="flex items-center gap-3 p-3 bg-white rounded-lg border border-stone-100"
             >
-              <div className={`w-2 h-full min-h-10 rounded-full ${statusColors[apt.status]}`} />
+              <div className={`w-2 h-full min-h-10 rounded-full ${statusColors[apt.status] || 'bg-gray-400'}`} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-stone-800 truncate">{apt.patient_name}</p>
                 <p className="text-xs text-stone-500">
-                  {format(new Date(apt.date), 'dd/MM')} {apt.time && `às ${apt.time}`}
+                  {format(new Date(apt.date + 'T00:00:00'), 'dd/MM')} {apt.time && `às ${apt.time}`}
                 </p>
               </div>
-              <Badge className={`${statusColors[apt.status]} text-white text-xs`}>
+              <Badge className={`${statusColors[apt.status] || 'bg-gray-400'} text-white text-xs`}>
                 {apt.status}
               </Badge>
             </div>
           ))}
-        {appointments.filter(a => isSameMonth(new Date(a.date), currentDate)).length === 0 && (
-          <p className="text-center text-stone-400 py-6 text-sm">Nenhum agendamento neste mês</p>
-        )}
       </div>
 
       {/* Legend */}

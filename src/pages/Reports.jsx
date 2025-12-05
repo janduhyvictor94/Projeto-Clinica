@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/supabase.js';
 import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import StatCard from '@/components/ui/StatCard';
@@ -19,19 +19,32 @@ export default function Reports() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  // --- BUSCANDO DADOS NO SUPABASE ---
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments'],
-    queryFn: () => base44.entities.Appointment.list(),
+    queryFn: async () => {
+      const { data, error } = await supabase.from('appointments').select('*');
+      if (error) throw error;
+      return data || [];
+    },
   });
 
   const { data: patients = [] } = useQuery({
     queryKey: ['patients'],
-    queryFn: () => base44.entities.Patient.list(),
+    queryFn: async () => {
+      const { data, error } = await supabase.from('patients').select('*');
+      if (error) throw error;
+      return data || [];
+    },
   });
 
   const { data: stockMovements = [] } = useQuery({
     queryKey: ['stock-movements'],
-    queryFn: () => base44.entities.StockMovement.list(),
+    queryFn: async () => {
+      const { data, error } = await supabase.from('stock_movements').select('*');
+      if (error) throw error;
+      return data || [];
+    },
   });
 
   const getDateRange = () => {
@@ -57,7 +70,9 @@ export default function Reports() {
   const { start, end } = getDateRange();
 
   const filteredAppointments = appointments.filter(a => {
-    const date = new Date(a.date);
+    if (!a.date) return false;
+    // Corrige fuso horário adicionando hora
+    const date = new Date(a.date + 'T12:00:00'); 
     return isWithinInterval(date, { start, end }) && a.status === 'Realizado';
   });
 
@@ -67,18 +82,19 @@ export default function Reports() {
 
   // Custo de materiais no período
   const filteredMovements = stockMovements.filter(m => {
-    const date = new Date(m.date);
+    const date = new Date(m.created_at);
     return isWithinInterval(date, { start, end }) && m.type === 'saida';
   });
-  const totalMaterialCost = filteredMovements.reduce((sum, m) => sum + (m.total_cost || 0), 0);
+  const totalMaterialCost = filteredMovements.reduce((sum, m) => sum + (Number(m.total_cost) || 0), 0);
 
   // Materiais mais usados
   const materialUsage = filteredMovements.reduce((acc, m) => {
-    if (!acc[m.material_name]) {
-      acc[m.material_name] = { quantity: 0, cost: 0 };
+    const name = m.material_name || 'Desconhecido';
+    if (!acc[name]) {
+      acc[name] = { quantity: 0, cost: 0 };
     }
-    acc[m.material_name].quantity += m.quantity || 0;
-    acc[m.material_name].cost += m.total_cost || 0;
+    acc[name].quantity += Number(m.quantity) || 0;
+    acc[name].cost += Number(m.total_cost) || 0;
     return acc;
   }, {});
 
@@ -87,22 +103,26 @@ export default function Reports() {
     .sort((a, b) => b.cost - a.cost)
     .slice(0, 10);
 
-  // Procedimentos mais executados
+  // Procedimentos mais executados (Considerando JSON no Supabase)
   const procedureStats = filteredAppointments.reduce((acc, a) => {
-    if (a.procedures_performed?.length > 0) {
-      a.procedures_performed.forEach(p => {
+    // Verifica se procedures_performed existe e é um array (mesmo vindo de JSON)
+    const procs = a.procedures_performed;
+    if (procs && Array.isArray(procs)) {
+      procs.forEach(p => {
         if (!acc[p.procedure_name]) {
           acc[p.procedure_name] = { count: 0, revenue: 0, materialCost: 0 };
         }
         acc[p.procedure_name].count++;
-        acc[p.procedure_name].revenue += p.price || 0;
+        acc[p.procedure_name].revenue += Number(p.price) || 0;
       });
-      // Distribuir custo de materiais proporcionalmente entre procedimentos
-      const materialCost = a.total_material_cost || 0;
-      const procedureCount = a.procedures_performed.length;
-      a.procedures_performed.forEach(p => {
-        acc[p.procedure_name].materialCost += materialCost / procedureCount;
-      });
+      // Distribuir custo de materiais proporcionalmente
+      const materialCost = Number(a.total_material_cost) || 0;
+      const procedureCount = procs.length;
+      if (procedureCount > 0) {
+        procs.forEach(p => {
+            acc[p.procedure_name].materialCost += materialCost / procedureCount;
+        });
+      }
     }
     return acc;
   }, {});
@@ -116,14 +136,16 @@ export default function Reports() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
-  // Métricas por gênero
+  // Métricas por gênero (Cruzando com tabela de Patients)
   const genderStats = filteredAppointments.reduce((acc, a) => {
-    const gender = a.patient_gender || 'Outro';
+    const patient = patients.find(p => p.id === a.patient_id);
+    const gender = patient?.gender || 'Outro';
+    
     if (!acc[gender]) {
       acc[gender] = { count: 0, total: 0 };
     }
     acc[gender].count++;
-    acc[gender].total += a.final_value || a.total_value || 0;
+    acc[gender].total += Number(a.final_value || a.total_value || 0);
     return acc;
   }, {});
 
@@ -138,14 +160,16 @@ export default function Reports() {
     value: data.count,
   }));
 
-  // Métricas por origem
+  // Métricas por origem (Cruzando com tabela de Patients)
   const originStats = filteredAppointments.reduce((acc, a) => {
-    const origin = a.patient_origin || 'Outro';
+    const patient = patients.find(p => p.id === a.patient_id);
+    const origin = patient?.origin || 'Outro';
+
     if (!acc[origin]) {
       acc[origin] = { count: 0, total: 0 };
     }
     acc[origin].count++;
-    acc[origin].total += a.final_value || a.total_value || 0;
+    acc[origin].total += Number(a.final_value || a.total_value || 0);
     return acc;
   }, {});
 
@@ -157,10 +181,8 @@ export default function Reports() {
     }))
     .sort((a, b) => b.pacientes - a.pacientes);
 
-  // Melhor plataforma
   const bestOrigin = originChartData.length > 0 ? originChartData[0] : null;
 
-  // Gênero que mais gasta
   const highestSpendingGender = Object.entries(genderStats)
     .sort(([,a], [,b]) => b.total - a.total)[0];
 
@@ -272,7 +294,7 @@ export default function Reports() {
         />
         <StatCard
           title="Lucro"
-          value={`R$ ${(filteredAppointments.reduce((sum, a) => sum + (a.final_value || a.total_value || 0), 0) - totalMaterialCost).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+          value={`R$ ${(filteredAppointments.reduce((sum, a) => sum + (Number(a.final_value) || Number(a.total_value) || 0), 0) - totalMaterialCost).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
           icon={TrendingUp}
         />
       </div>
@@ -402,96 +424,6 @@ export default function Reports() {
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Patient Type Comparison */}
-      <Card className="bg-white border-stone-100">
-        <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
-          <CardTitle className="text-base sm:text-lg font-medium">Novos vs Recorrentes</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-6 pt-2 sm:pt-2">
-          <div className="grid grid-cols-2 gap-3 sm:gap-6">
-            <div className="text-center p-3 sm:p-6 bg-emerald-50 rounded-xl">
-              <UserPlus className="w-6 h-6 sm:w-8 sm:h-8 mx-auto text-emerald-600 mb-1 sm:mb-2" />
-              <p className="text-2xl sm:text-3xl font-light text-stone-800">{newPatients}</p>
-              <p className="text-xs sm:text-sm text-stone-500 mt-1">Novos</p>
-              <p className="text-[10px] sm:text-xs text-stone-400 mt-1 sm:mt-2">
-                {filteredAppointments.length > 0 
-                  ? `${((newPatients / filteredAppointments.length) * 100).toFixed(0)}%`
-                  : '0%'}
-              </p>
-            </div>
-            <div className="text-center p-3 sm:p-6 bg-blue-50 rounded-xl">
-              <UserCheck className="w-6 h-6 sm:w-8 sm:h-8 mx-auto text-blue-600 mb-1 sm:mb-2" />
-              <p className="text-2xl sm:text-3xl font-light text-stone-800">{returningPatients}</p>
-              <p className="text-xs sm:text-sm text-stone-500 mt-1">Recorrentes</p>
-              <p className="text-[10px] sm:text-xs text-stone-400 mt-1 sm:mt-2">
-                {filteredAppointments.length > 0 
-                  ? `${((returningPatients / filteredAppointments.length) * 100).toFixed(0)}%`
-                  : '0%'}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Top Procedures */}
-      <Card className="bg-white border-stone-100">
-        <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
-          <CardTitle className="text-base sm:text-lg font-medium">Procedimentos Mais Realizados</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-6 pt-2 sm:pt-2">
-          {topProcedures.length > 0 ? (
-            <>
-              <div className="h-64 sm:h-80 mb-4 sm:mb-6 hidden sm:block">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topProcedures} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-                    <XAxis type="number" stroke="#78716c" fontSize={12} />
-                    <YAxis type="category" dataKey="name" stroke="#78716c" fontSize={11} width={120} />
-                    <Tooltip
-                      formatter={(value, name) => [
-                        name === 'count' ? value : `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                        name === 'count' ? 'Quantidade' : name === 'revenue' ? 'Faturamento' : 'Lucro'
-                      ]}
-                    />
-                    <Legend />
-                    <Bar dataKey="count" fill="#78716c" name="Quantidade" radius={[0, 4, 4, 0]} />
-                    <Bar dataKey="profit" fill="#22c55e" name="Lucro" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="overflow-x-auto -mx-4 sm:mx-0">
-                <table className="w-full text-xs sm:text-sm min-w-[400px]">
-                  <thead>
-                    <tr className="border-b border-stone-200">
-                      <th className="text-left py-2 px-2 sm:px-0 font-medium text-stone-600">Procedimento</th>
-                      <th className="text-center py-2 font-medium text-stone-600">Qtd</th>
-                      <th className="text-right py-2 font-medium text-stone-600 hidden sm:table-cell">Faturamento</th>
-                      <th className="text-right py-2 font-medium text-stone-600 hidden sm:table-cell">Custo</th>
-                      <th className="text-right py-2 px-2 sm:px-0 font-medium text-stone-600">Lucro</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topProcedures.map((p, i) => (
-                      <tr key={i} className="border-b border-stone-100">
-                        <td className="py-2 px-2 sm:px-0 text-stone-800 truncate max-w-[120px] sm:max-w-none">{p.name}</td>
-                        <td className="py-2 text-center text-stone-600">{p.count}</td>
-                        <td className="py-2 text-right text-stone-600 hidden sm:table-cell">R$ {p.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</td>
-                        <td className="py-2 text-right text-amber-600 hidden sm:table-cell">R$ {p.materialCost.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</td>
-                        <td className="py-2 px-2 sm:px-0 text-right font-medium text-emerald-600">R$ {p.profit.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          ) : (
-            <div className="py-8 sm:py-12 text-center text-stone-400 text-sm">
-              Sem procedimentos no período
-            </div>
-          )}
         </CardContent>
       </Card>
 
