@@ -136,12 +136,6 @@ export default function Financial() {
     return data;
   };
 
-  // Mantenha o JSX original (return) aqui, ele vai usar as variáveis que calculamos acima
-  // Cole o return do seu Financial.jsx original a partir daqui.
-  // ...
-  // Incluindo ExpenseCard e ExpenseModal (que não mudam lógica, só visual)
-  
-  // VOU COLOCAR O RETURN RESUMIDO PARA CONFIRMAR O FUNCIONAMENTO
   const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   const years = Array.from({ length: 21 }, (_, i) => new Date().getFullYear() - 10 + i);
 
@@ -149,18 +143,33 @@ export default function Financial() {
     <div className="space-y-6">
       <PageHeader title="Financeiro" subtitle="Controle total" action={<Button onClick={() => setIsOpen(true)} className="bg-stone-800"><Plus className="mr-2 h-4 w-4" /> Nova Despesa</Button>} />
       
-      {/* Filtros e Cards (Copie do original se quiser o visual completo) */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard title="Faturamento" value={`R$ ${totalRevenue.toLocaleString('pt-BR')}`} icon={DollarSign} />
+        <StatCard title="A Receber (Parcelas)" value={`R$ ${pendingInstallmentsValue.toLocaleString('pt-BR')}`} icon={CreditCard} />
         <StatCard title="Despesas" value={`R$ ${totalExpenses.toLocaleString('pt-BR')}`} icon={TrendingDown} />
-        <StatCard title="Lucro" value={`R$ ${profit.toLocaleString('pt-BR')}`} icon={TrendingUp} />
+        <StatCard title="Custo Materiais" value={`R$ ${totalMaterialCost.toLocaleString('pt-BR')}`} icon={TrendingDown} />
+        <StatCard title="Lucro" value={`R$ ${profit.toLocaleString('pt-BR')}`} icon={TrendingUp} className={profit >= 0 ? '' : 'border-rose-200'} />
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList><TabsTrigger value="overview">Visão Geral</TabsTrigger><TabsTrigger value="expenses">Despesas</TabsTrigger></TabsList>
+        <TabsList><TabsTrigger value="overview">Visão Geral</TabsTrigger><TabsTrigger value="installments">Parcelas</TabsTrigger><TabsTrigger value="expenses">Despesas</TabsTrigger></TabsList>
+        
         <TabsContent value="overview">
             <Card><CardContent className="h-80"><ResponsiveContainer><BarChart data={getChartData()}><XAxis dataKey="name" /><Tooltip /><Legend /><Bar dataKey="faturamento" fill="#c4a47c" /><Bar dataKey="despesas" fill="#78716c" /></BarChart></ResponsiveContainer></CardContent></Card>
         </TabsContent>
+        
+        <TabsContent value="installments">
+          {filteredInstallments.map(i => (
+            <Card key={i.id} className="mb-2"><CardContent className="p-4 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <Button size="icon" variant="ghost" onClick={() => toggleInstallmentReceived(i)}><CheckCircle2 className={`w-5 h-5 ${i.is_received ? 'text-green-600' : 'text-gray-300'}`} /></Button>
+                <div><p className="font-medium">{i.patient_name}</p><p className="text-sm text-gray-500">{i.installment_number}/{i.total_installments} - Vence: {format(new Date(i.due_date), 'dd/MM/yyyy')}</p></div>
+              </div>
+              <p>R$ {Number(i.value).toFixed(2)}</p>
+            </CardContent></Card>
+          ))}
+        </TabsContent>
+
         <TabsContent value="expenses">
             {filteredExpenses.map(e => (
                 <Card key={e.id} className="mb-2"><CardContent className="p-4 flex justify-between">

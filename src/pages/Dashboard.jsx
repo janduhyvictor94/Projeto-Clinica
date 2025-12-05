@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { supabase } from '@/supabase.js'; // <-- CORRIGIDO
+import { supabase } from '@/supabase.js';
 import { useQuery } from '@tanstack/react-query';
-import { format, startOfMonth, endOfMonth, isWithinInterval, addDays } from 'date-fns';
+import { startOfMonth, endOfMonth, isWithinInterval, addDays } from 'date-fns';
 import PageHeader from '@/components/ui/PageHeader';
 import StatCard from '@/components/ui/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, Calendar, TrendingUp, Bell, ArrowRight, UserPlus, UserCheck } from 'lucide-react';
+// ADICIONADO: Users na importação abaixo
+import { Users, DollarSign, Calendar, TrendingUp, Bell, ArrowRight, UserPlus, UserCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
@@ -16,7 +17,6 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  // --- BUSCANDO DO SUPABASE (CORRIGIDO) ---
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments'],
     queryFn: async () => {
@@ -41,13 +41,12 @@ export default function Dashboard() {
     },
   });
 
-  // --- LÓGICA DE CÁLCULO (MANTIDA IGUAL) ---
   const monthStart = startOfMonth(new Date(selectedYear, selectedMonth));
   const monthEnd = endOfMonth(new Date(selectedYear, selectedMonth));
 
   const monthAppointments = appointments.filter(a => {
     if (!a.date) return false;
-    const date = new Date(a.date + 'T12:00:00'); // Ajuste fuso
+    const date = new Date(a.date + 'T12:00:00');
     return isWithinInterval(date, { start: monthStart, end: monthEnd }) && a.status === 'Realizado';
   });
 
@@ -172,6 +171,7 @@ export default function Dashboard() {
         </Card>
       </div>
       
+      {/* Botões de Ação Rápida (Que causavam o erro antes) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
          <Link to={createPageUrl('Patients') + '?action=new'}>
             <div className="p-3 sm:p-4 bg-white rounded-xl border border-stone-100 hover:border-stone-300 transition-colors cursor-pointer group">

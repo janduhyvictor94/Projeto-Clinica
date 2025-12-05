@@ -8,7 +8,7 @@ const queryClient = new QueryClient()
 
 function App() {
   return (
-    // Envolvendo o site inteiro com o Provedor
+    // Essa linha é OBRIGATÓRIA para o site funcionar
     <QueryClientProvider client={queryClient}>
       <Pages />
       <Toaster />
