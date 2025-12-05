@@ -41,7 +41,7 @@ export default function Appointments() {
   const { data: procedures = [] } = useQuery({ queryKey: ['procedures'], queryFn: async () => (await supabase.from('procedures').select('*')).data || [] });
   const { data: materials = [] } = useQuery({ queryKey: ['materials'], queryFn: async () => (await supabase.from('materials').select('*')).data || [] });
 
-  // --- CREATE LOGIC (COMPLEXA) ---
+  // --- CREATE LOGIC ---
   const createMutation = useMutation({
     mutationFn: async (data) => {
       // 1. Criar Atendimento
@@ -54,7 +54,6 @@ export default function Appointments() {
           const { data: material } = await supabase.from('materials').select('*').eq('id', mat.material_id).single();
           if (material) {
             const newStock = (material.stock_quantity || 0) - mat.quantity;
-            // Registrar Movimentação
             await supabase.from('stock_movements').insert({
               material_id: mat.material_id,
               material_name: mat.material_name,
@@ -67,13 +66,12 @@ export default function Appointments() {
               reason: `Atendimento ${data.patient_name}`,
               date: new Date()
             });
-            // Atualizar Produto
             await supabase.from('materials').update({ stock_quantity: newStock }).eq('id', mat.material_id);
           }
         }
       }
 
-      // 3. Gerar Parcelas (Se for cartão parcelado)
+      // 3. Gerar Parcelas
       if (data.payment_method === 'Cartão Crédito' && data.installments > 1) {
         const installmentsArray = [];
         for (let i = 1; i <= data.installments; i++) {
@@ -83,9 +81,9 @@ export default function Appointments() {
             patient_name: data.patient_name,
             installment_number: i,
             total_installments: data.installments,
-            value: data.installment_value,
+            value: data.final_value / data.installments, // Correção: valor da parcela
             due_date: format(dueDate, 'yyyy-MM-dd'),
-            is_received: true, // Cartão já considera "garantido"
+            is_received: true, 
             received_date: format(dueDate, 'yyyy-MM-dd'),
           });
         }
@@ -96,7 +94,7 @@ export default function Appointments() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       queryClient.invalidateQueries({ queryKey: ['installments'] });
-      queryClient.invalidateQueries({ queryKey: ['materials'] }); // Atualiza estoque na tela
+      queryClient.invalidateQueries({ queryKey: ['materials'] });
       setIsOpen(false);
       toast.success('Atendimento registrado!');
     },
@@ -127,15 +125,11 @@ export default function Appointments() {
   });
 
   const filteredAppointments = appointments.filter(a => {
-    const date = new Date(a.date);
+    if (!a.date) return false;
+    const date = new Date(a.date + 'T12:00:00');
     return date.getMonth() === selectedMonth && date.getFullYear() === selectedYear;
   });
 
-  // (MANTIVE O RESTO DO RENDER IGUAL AO ORIGINAL PARA NÃO QUEBRAR O VISUAL)
-  // ... COPIE AQUI O RESTO DO RETURN DO SEU ARQUIVO ORIGINAL (Do "return (" até o fim do arquivo, incluindo o AppointmentModal)
-  // ... É IMPORTANTE MANTER O RENDER ORIGINAL POIS ELE SÓ DEPENDE DOS DADOS QUE JÁ BUSCAMOS
-  
-  // VOU INCLUIR AQUI APENAS O INÍCIO DO RENDER PARA VOCÊ VERIFICAR
   const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   const years = Array.from({ length: 21 }, (_, i) => new Date().getFullYear() - 10 + i);
   const statusColors = { 'Agendado': 'bg-blue-100 text-blue-700', 'Confirmado': 'bg-emerald-100 text-emerald-700', 'Realizado': 'bg-stone-100 text-stone-700', 'Cancelado': 'bg-rose-100 text-rose-700' };
@@ -161,7 +155,7 @@ export default function Appointments() {
                     {apt.payment_method && <Badge className={paymentMethodColors[apt.payment_method]}>{apt.payment_method} {apt.installments > 1 && ` ${apt.installments}x`}</Badge>}
                   </div>
                   <div className="flex flex-wrap gap-4 text-sm text-stone-500 mb-3">
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{format(new Date(apt.date), 'dd/MM/yyyy')} {apt.time}</span>
+                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{format(new Date(apt.date + 'T12:00:00'), 'dd/MM/yyyy')} {apt.time}</span>
                     <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" />R$ {Number(apt.final_value).toFixed(2)}</span>
                   </div>
                 </div>
@@ -174,12 +168,202 @@ export default function Appointments() {
         ))}
       </div>
 
-      {/* MODALS */}
       <AppointmentModal open={isOpen || !!editingAppointment} onClose={() => { setIsOpen(false); setEditingAppointment(null); }} appointment={editingAppointment} patients={patients} procedures={procedures} materials={materials} allAppointments={appointments} onSave={(data) => { if (editingAppointment) { updateMutation.mutate({ id: editingAppointment.id, data }); } else { createMutation.mutate(data); } }} isLoading={createMutation.isPending || updateMutation.isPending} />
       <AlertDialog open={!!deleteAppointment} onOpenChange={() => setDeleteAppointment(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Excluir?</AlertDialogTitle><AlertDialogDescription>Não pode desfazer.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => deleteMutation.mutate(deleteAppointment.id)} className="bg-rose-600">Excluir</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>
   );
 }
 
-// ... COPIAR A FUNÇÃO AppointmentModal DO ARQUIVO ORIGINAL AQUI, ELA FUNCIONA IGUAL ...
-// (Apenas lembre de manter o AppointmentModal original no final do arquivo)
+// --- O COMPONENTE QUE FALTAVA ---
+function AppointmentModal({ open, onClose, appointment, patients, procedures, materials, onSave, isLoading }) {
+  const [formData, setFormData] = useState({
+    patient_id: '',
+    patient_name: '',
+    date: format(new Date(), 'yyyy-MM-dd'),
+    time: '09:00',
+    status: 'Agendado',
+    notes: '',
+    payment_method: '',
+    discount_percent: 0,
+    installments: 1,
+    procedures_performed: [],
+    materials_used: []
+  });
+
+  const [selectedProc, setSelectedProc] = useState('');
+  const [selectedMat, setSelectedMat] = useState('');
+  const [matQuantity, setMatQuantity] = useState(1);
+
+  useEffect(() => {
+    if (appointment) {
+      setFormData({
+        patient_id: appointment.patient_id || '',
+        patient_name: appointment.patient_name || '',
+        date: appointment.date || format(new Date(), 'yyyy-MM-dd'),
+        time: appointment.time || '09:00',
+        status: appointment.status || 'Agendado',
+        notes: appointment.notes || '',
+        payment_method: appointment.payment_method || '',
+        discount_percent: appointment.discount_percent || 0,
+        installments: appointment.installments || 1,
+        procedures_performed: appointment.procedures_performed || [],
+        materials_used: appointment.materials_used || []
+      });
+    } else {
+      setFormData({
+        patient_id: '',
+        patient_name: '',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        time: '09:00',
+        status: 'Agendado',
+        notes: '',
+        payment_method: '',
+        discount_percent: 0,
+        installments: 1,
+        procedures_performed: [],
+        materials_used: []
+      });
+    }
+  }, [appointment, open]);
+
+  const handlePatientChange = (value) => {
+    const p = patients.find(pat => pat.id === value);
+    setFormData(prev => ({ ...prev, patient_id: value, patient_name: p ? p.full_name : '' }));
+  };
+
+  const addProcedure = () => {
+    if (!selectedProc) return;
+    const proc = procedures.find(p => p.id === selectedProc);
+    if (proc) {
+      setFormData(prev => ({
+        ...prev,
+        procedures_performed: [...prev.procedures_performed, { procedure_id: proc.id, procedure_name: proc.name, price: proc.default_price }]
+      }));
+      setSelectedProc('');
+    }
+  };
+
+  const addMaterial = () => {
+    if (!selectedMat) return;
+    const mat = materials.find(m => m.id === selectedMat);
+    if (mat) {
+      setFormData(prev => ({
+        ...prev,
+        materials_used: [...prev.materials_used, { material_id: mat.id, material_name: mat.name, quantity: parseFloat(matQuantity), cost: mat.cost_per_unit }]
+      }));
+      setSelectedMat('');
+      setMatQuantity(1);
+    }
+  };
+
+  const removeProcedure = (index) => {
+    setFormData(prev => ({ ...prev, procedures_performed: prev.procedures_performed.filter((_, i) => i !== index) }));
+  };
+
+  const removeMaterial = (index) => {
+    setFormData(prev => ({ ...prev, materials_used: prev.materials_used.filter((_, i) => i !== index) }));
+  };
+
+  // Cálculos
+  const totalProcedures = formData.procedures_performed.reduce((sum, p) => sum + (Number(p.price) || 0), 0);
+  const totalMaterials = formData.materials_used.reduce((sum, m) => sum + ((Number(m.cost) || 0) * (Number(m.quantity) || 0)), 0);
+  const discountValue = (totalProcedures * (formData.discount_percent || 0)) / 100;
+  const finalValue = totalProcedures - discountValue;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({
+      ...formData,
+      total_value: totalProcedures,
+      final_value: finalValue,
+      total_material_cost: totalMaterials,
+      is_new_patient: false // Pode melhorar isso depois verificando se é o 1º do paciente
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{appointment ? 'Editar' : 'Novo'} Agendamento</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label>Paciente</Label>
+              <Select value={formData.patient_id} onValueChange={handlePatientChange}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>{patients.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><Label>Data</Label><Input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} required /></div>
+              <div><Label>Hora</Label><Input type="time" value={formData.time} onChange={e => setFormData({ ...formData, time: e.target.value })} required /></div>
+            </div>
+          </div>
+
+          <div className="space-y-2 border p-3 rounded-md">
+            <Label>Procedimentos</Label>
+            <div className="flex gap-2">
+              <Select value={selectedProc} onValueChange={setSelectedProc}>
+                <SelectTrigger><SelectValue placeholder="Adicionar Procedimento" /></SelectTrigger>
+                <SelectContent>{procedures.map(p => <SelectItem key={p.id} value={p.id}>{p.name} - R$ {p.default_price}</SelectItem>)}</SelectContent>
+              </Select>
+              <Button type="button" onClick={addProcedure}><Plus className="w-4 h-4" /></Button>
+            </div>
+            {formData.procedures_performed.map((p, i) => (
+              <div key={i} className="flex justify-between items-center bg-stone-50 p-2 rounded text-sm">
+                <span>{p.procedure_name}</span>
+                <div className="flex items-center gap-2">
+                  <span>R$ {p.price}</span>
+                  <X className="w-4 h-4 cursor-pointer text-red-500" onClick={() => removeProcedure(i)} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-2 border p-3 rounded-md">
+            <Label>Materiais Usados (Baixa no Estoque)</Label>
+            <div className="flex gap-2">
+              <Select value={selectedMat} onValueChange={setSelectedMat}>
+                <SelectTrigger className="flex-1"><SelectValue placeholder="Material" /></SelectTrigger>
+                <SelectContent>{materials.map(m => <SelectItem key={m.id} value={m.id}>{m.name} ({m.unit})</SelectItem>)}</SelectContent>
+              </Select>
+              <Input type="number" className="w-20" value={matQuantity} onChange={e => setMatQuantity(e.target.value)} placeholder="Qtd" />
+              <Button type="button" onClick={addMaterial}><Plus className="w-4 h-4" /></Button>
+            </div>
+            {formData.materials_used.map((m, i) => (
+              <div key={i} className="flex justify-between items-center bg-stone-50 p-2 rounded text-sm">
+                <span>{m.material_name} ({m.quantity})</span>
+                <X className="w-4 h-4 cursor-pointer text-red-500" onClick={() => removeMaterial(i)} />
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-stone-50 p-4 rounded-lg">
+            <div>
+              <Label>Forma de Pagamento</Label>
+              <Select value={formData.payment_method} onValueChange={v => setFormData({ ...formData, payment_method: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            {formData.payment_method === 'Cartão Crédito' && (
+              <div><Label>Parcelas</Label><Input type="number" min="1" max="12" value={formData.installments} onChange={e => setFormData({ ...formData, installments: parseInt(e.target.value) })} /></div>
+            )}
+            <div><Label>Status</Label><Select value={formData.status} onValueChange={v => setFormData({ ...formData, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Agendado">Agendado</SelectItem><SelectItem value="Confirmado">Confirmado</SelectItem><SelectItem value="Realizado">Realizado</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem></SelectContent></Select></div>
+            <div><Label>Desconto (%)</Label><Input type="number" value={formData.discount_percent} onChange={e => setFormData({ ...formData, discount_percent: parseFloat(e.target.value) })} /></div>
+          </div>
+
+          <div className="flex justify-between items-center text-lg font-bold">
+            <span>Total: R$ {totalProcedures}</span>
+            <span className="text-emerald-700">Final: R$ {finalValue}</span>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button type="submit" disabled={isLoading} className="bg-stone-800 text-white hover:bg-stone-900">{isLoading ? 'Salvando...' : 'Salvar'}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
