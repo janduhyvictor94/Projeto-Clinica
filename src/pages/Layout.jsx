@@ -33,7 +33,7 @@ export default function Layout({ children, currentPageName }) {
   ];
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen bg-stone-200">
       <style>{`
         :root {
           --accent: #c4a47c;
