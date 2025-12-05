@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/supabase'; // <-- MUDANÇA PRINCIPAL: Usando Supabase
+import { supabase } from '@/supabase.js';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
