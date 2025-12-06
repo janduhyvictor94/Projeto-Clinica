@@ -41,7 +41,11 @@ export default function Patients() {
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      const cleanData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== '' && v !== null));
+      // Limpa dados vazios para não enviar string vazia para campos de data
+      const cleanData = { ...data };
+      if (!cleanData.birth_date) cleanData.birth_date = null;
+      if (!cleanData.next_return_date) cleanData.next_return_date = null;
+      
       const { error } = await supabase.from('patients').insert([cleanData]);
       if (error) throw error;
     },
@@ -110,7 +114,7 @@ export default function Patients() {
                   {(patient.next_return_date) && (
                     <div className="flex gap-2 mt-2">
                         <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">
-                          <Calendar className="w-3 h-3 mr-1" />{format(new Date(patient.next_return_date), 'dd/MM')}
+                          <Calendar className="w-3 h-3 mr-1" />{format(new Date(patient.next_return_date), 'dd/MM/yyyy')}
                         </Badge>
                     </div>
                   )}
@@ -131,7 +135,7 @@ export default function Patients() {
   );
 }
 
-// O MODAL COMPLETO COM TODOS OS CAMPOS
+// ESTE É O MODAL COMPLETO (IGUAL AO SEU PRINT)
 function PatientModal({ open, onClose, patient, onSave, isLoading }) {
   const [formData, setFormData] = useState({
     full_name: '', phone: '', email: '', birth_date: '', gender: '', cpf: '', address: '',
