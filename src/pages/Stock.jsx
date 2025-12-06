@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '@/supabase.js'; // Conexão Supabase
+import { supabase } from '@/supabase.js';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,8 @@ import {
   Plus, Search, Edit2, Trash2, Package, AlertTriangle, 
   ArrowUpCircle, ArrowDownCircle, History, Box, Filter
 } from 'lucide-react';
-import { format } from 'date-fns';
+// A LINHA ABAIXO É A QUE ESTAVA FALTANDO OU COM ERRO
+import { format } from 'date-fns'; 
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -41,7 +42,6 @@ export default function Stock() {
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const queryClient = useQueryClient();
 
-  // --- QUERIES SUPABASE ---
   const { data: materials = [] } = useQuery({
     queryKey: ['materials'],
     queryFn: async () => {
@@ -53,13 +53,11 @@ export default function Stock() {
   const { data: movements = [] } = useQuery({
     queryKey: ['stock-movements'],
     queryFn: async () => {
-      // Nota: No Supabase usei 'created_at' para ordenar por data, ou 'date' se tiver criado essa coluna
       const { data } = await supabase.from('stock_movements').select('*').order('created_at', { ascending: false });
       return data || [];
     },
   });
 
-  // --- MUTAÇÕES ---
   const createMaterialMutation = useMutation({
     mutationFn: async (data) => {
       const { error } = await supabase.from('materials').insert([data]);
@@ -96,7 +94,6 @@ export default function Stock() {
     },
   });
 
-  // --- MOVIMENTAÇÃO DE ESTOQUE (LÓGICA COMPLEXA) ---
   const createMovementMutation = useMutation({
     mutationFn: async (data) => {
       const material = materials.find(m => m.id === data.material_id);
@@ -109,10 +106,9 @@ export default function Stock() {
       } else if (data.type === 'saida') {
         newStock = previousStock - qtd;
       } else {
-        newStock = qtd; // ajuste
+        newStock = qtd; 
       }
 
-      // 1. Gravar no histórico
       await supabase.from('stock_movements').insert({
         ...data,
         material_name: material?.name,
@@ -122,7 +118,6 @@ export default function Stock() {
         total_cost: (Number(material?.cost_per_unit) || 0) * qtd,
       });
 
-      // 2. Atualizar saldo do produto
       await supabase.from('materials').update({
         stock_quantity: newStock,
       }).eq('id', data.material_id);
@@ -136,7 +131,6 @@ export default function Stock() {
     },
   });
 
-  // Filtros locais (Mantido igual)
   const filteredMaterials = materials.filter(m => {
     const matchesSearch = m.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       m.description?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -394,7 +388,6 @@ export default function Stock() {
                         </Badge>
                       </div>
                       <div className="text-xs sm:text-sm text-stone-500 truncate">
-                        {/* Se o campo for 'created_at', formata ele. Se for 'date', formata 'date' */}
                         {format(new Date(mov.created_at || mov.date), 'dd/MM/yyyy HH:mm')}
                         {mov.reason && <span className="hidden sm:inline"> • {mov.reason}</span>}
                       </div>
@@ -474,7 +467,6 @@ export default function Stock() {
   );
 }
 
-// MANTIVE OS MODAIS IDÊNTICOS AO ORIGINAL
 function ProductModal({ open, onClose, product, onSave, isLoading }) {
   const [formData, setFormData] = useState({
     name: '',
