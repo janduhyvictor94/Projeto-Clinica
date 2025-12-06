@@ -15,7 +15,6 @@ import {
   Plus, Search, Edit2, Trash2, Package, AlertTriangle, 
   ArrowUpCircle, ArrowDownCircle, History, Box, Filter
 } from 'lucide-react';
-// A LINHA ABAIXO É A QUE ESTAVA FALTANDO OU COM ERRO
 import { format } from 'date-fns'; 
 import { toast } from 'sonner';
 import {
@@ -178,7 +177,6 @@ export default function Stock() {
         }
       />
 
-      {/* Alertas de Estoque Baixo */}
       {lowStockMaterials.length > 0 && (
         <Card className="border-amber-200 bg-amber-50">
           <CardHeader className="pb-2 p-3 sm:p-6 sm:pb-2">
@@ -199,7 +197,6 @@ export default function Stock() {
         </Card>
       )}
 
-      {/* Resumo */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <Card className="bg-white border-stone-100">
           <CardContent className="p-3 sm:p-4">
@@ -264,7 +261,6 @@ export default function Stock() {
         </TabsList>
 
         <TabsContent value="inventory" className="space-y-4">
-          {/* Filtros */}
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
@@ -289,7 +285,6 @@ export default function Stock() {
             </Select>
           </div>
 
-          {/* Lista de Produtos */}
           <div className="grid gap-2 sm:gap-3">
             {filteredMaterials.map((material) => {
               const isLowStock = material.minimum_stock && material.stock_quantity <= material.minimum_stock;
@@ -412,7 +407,6 @@ export default function Stock() {
         </TabsContent>
       </Tabs>
 
-      {/* Modal Produto */}
       <ProductModal
         open={isProductModalOpen || !!editingProduct}
         onClose={() => {
@@ -430,7 +424,6 @@ export default function Stock() {
         isLoading={createMaterialMutation.isPending || updateMaterialMutation.isPending}
       />
 
-      {/* Modal Movimentação */}
       <MovementModal
         open={isMovementModalOpen}
         onClose={() => {
@@ -443,7 +436,6 @@ export default function Stock() {
         isLoading={createMovementMutation.isPending}
       />
 
-      {/* Delete Confirmation */}
       <AlertDialog open={!!deleteProduct} onOpenChange={() => setDeleteProduct(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -471,7 +463,7 @@ function ProductModal({ open, onClose, product, onSave, isLoading }) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    unit: 'un', // Default
+    unit: 'un', 
     cost_per_unit: '',
     stock_quantity: '',
     minimum_stock: '',

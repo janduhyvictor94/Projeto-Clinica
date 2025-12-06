@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { createPageUrl } from '../utils'; // <-- MUDANÇA: Correção do caminho (../utils)
+import { createPageUrl } from '../utils'; 
 import { 
   LayoutDashboard, 
   Users, 
@@ -41,7 +41,6 @@ export default function Layout({ children, currentPageName }) {
         }
       `}</style>
 
-      {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-stone-200 z-50 flex items-center justify-between px-4">
         <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-stone-100 rounded-lg transition-colors">
           <Menu className="w-5 h-5 text-stone-600" />
@@ -52,7 +51,6 @@ export default function Layout({ children, currentPageName }) {
         <div className="w-9" />
       </header>
 
-      {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
           className="lg:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-50"
@@ -60,7 +58,6 @@ export default function Layout({ children, currentPageName }) {
         />
       )}
 
-      {/* Sidebar */}
       <aside className={cn(
         "fixed top-0 left-0 h-full w-64 bg-white border-r border-stone-200 z-50 transition-transform duration-300",
         "lg:translate-x-0",
@@ -104,7 +101,6 @@ export default function Layout({ children, currentPageName }) {
         </nav>
       </aside>
 
-      {/* Main Content */}
       <main className="lg:ml-64 min-h-screen pt-16 lg:pt-0">
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
           {children}

@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/supabase.js'; // Conexão Supabase
+import { supabase } from '@/supabase.js';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, Clock, DollarSign, Package, X, CreditCard, Calendar } from 'lucide-react';
+import { Plus, Edit2, Trash2, Clock, DollarSign, Package, X, CreditCard } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
 import { toast } from 'sonner';
 import {
@@ -41,7 +40,6 @@ export default function Appointments() {
     }
   }, []);
 
-  // --- QUERIES (ADAPTADAS PARA SUPABASE) ---
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments'],
     queryFn: async () => {
@@ -74,24 +72,19 @@ export default function Appointments() {
     },
   });
 
-  // --- CREATE MUTATION (ADAPTADA) ---
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      // 1. Criar o agendamento
       const { data: appointment, error } = await supabase.from('appointments').insert([data]).select().single();
       if (error) throw error;
 
-      // 2. Dar baixa no estoque (Lógica original mantida)
       if (data.materials_used?.length > 0) {
         for (const mat of data.materials_used) {
-          // Buscar material atual para saber o estoque
           const { data: materialData } = await supabase.from('materials').select('*').eq('id', mat.material_id).single();
           
           if (materialData) {
             const previousStock = Number(materialData.stock_quantity) || 0;
             const newStock = previousStock - Number(mat.quantity);
 
-            // Criar movimentação
             await supabase.from('stock_movements').insert({
               material_id: mat.material_id,
               material_name: mat.material_name,
@@ -101,19 +94,15 @@ export default function Appointments() {
               new_stock: newStock,
               cost_per_unit: mat.cost,
               total_cost: mat.cost * mat.quantity,
-              // appointment_id: appointment.id, // Se quiser ligar, precisa adicionar campo na tabela
-              // patient_name: data.patient_name, // Se quiser ligar
               reason: `Uso em atendimento - ${data.patient_name}`,
               date: data.date,
             });
 
-            // Atualizar estoque do material
             await supabase.from('materials').update({ stock_quantity: newStock }).eq('id', mat.material_id);
           }
         }
       }
 
-      // 3. Criar Parcelas (Lógica original mantida)
       if (data.payment_method === 'Cartão Crédito' && data.installments > 1) {
         const installmentsArray = [];
         for (let i = 1; i <= data.installments; i++) {
@@ -123,13 +112,12 @@ export default function Appointments() {
             patient_name: data.patient_name,
             installment_number: i,
             total_installments: data.installments,
-            value: data.installment_value, // Usando o valor calculado no form
+            value: data.installment_value,
             due_date: format(dueDate, 'yyyy-MM-dd'),
-            is_received: true, // Cartão já é garantido
+            is_received: true,
             received_date: format(dueDate, 'yyyy-MM-dd'),
           });
         }
-        // Inserir todas as parcelas de uma vez
         await supabase.from('installments').insert(installmentsArray);
       }
 
@@ -137,14 +125,13 @@ export default function Appointments() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      queryClient.invalidateQueries({ queryKey: ['materials'] }); // Atualiza estoque na tela
-      queryClient.invalidateQueries({ queryKey: ['installments'] }); // Atualiza financeiro
+      queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['installments'] });
       setIsOpen(false);
       toast.success('Atendimento registrado');
     },
   });
 
-  // --- UPDATE MUTATION ---
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }) => {
       const { error } = await supabase.from('appointments').update(data).eq('id', id);
@@ -157,7 +144,6 @@ export default function Appointments() {
     },
   });
 
-  // --- DELETE MUTATION ---
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
       const { error } = await supabase.from('appointments').delete().eq('id', id);
@@ -172,7 +158,7 @@ export default function Appointments() {
 
   const filteredAppointments = appointments.filter(a => {
     if (!a.date) return false;
-    const date = new Date(a.date + 'T12:00:00'); // Ajuste fuso
+    const date = new Date(a.date + 'T12:00:00');
     return date.getMonth() === selectedMonth && date.getFullYear() === selectedYear;
   });
 
@@ -209,7 +195,6 @@ export default function Appointments() {
         }
       />
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
           <SelectTrigger className="w-36 bg-white"><SelectValue /></SelectTrigger>
@@ -221,7 +206,6 @@ export default function Appointments() {
         </Select>
       </div>
 
-      {/* Appointments List */}
       <div className="space-y-4">
         {filteredAppointments.map((apt) => (
           <Card key={apt.id} className="bg-white border-stone-100">
@@ -245,7 +229,6 @@ export default function Appointments() {
                     {Number(apt.total_material_cost) > 0 && <span className="flex items-center gap-1 text-amber-600"><Package className="w-3 h-3" />Custo: R$ {Number(apt.total_material_cost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
                   </div>
                   
-                  {/* Procedures List */}
                   {apt.procedures_performed?.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-2">
                       {apt.procedures_performed.map((p, i) => (
@@ -254,7 +237,6 @@ export default function Appointments() {
                     </div>
                   )}
                   
-                  {/* Materials List */}
                   {apt.materials_used?.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-2">
                       {apt.materials_used.map((m, i) => (
@@ -278,7 +260,6 @@ export default function Appointments() {
         {filteredAppointments.length === 0 && <div className="text-center py-12 text-stone-400">Nenhum atendimento neste período</div>}
       </div>
 
-      {/* Create/Edit Modal */}
       <AppointmentModal
         open={isOpen || !!editingAppointment}
         onClose={() => { setIsOpen(false); setEditingAppointment(null); }}
@@ -298,7 +279,6 @@ export default function Appointments() {
   );
 }
 
-// === COMPONENTE MODAL COMPLETO (Formulário) ===
 function AppointmentModal({ open, onClose, appointment, patients, procedures, materials, allAppointments, onSave, isLoading }) {
   const [formData, setFormData] = useState({
     patient_id: '', patient_name: '', patient_gender: '', patient_origin: '',
@@ -410,22 +390,18 @@ function AppointmentModal({ open, onClose, appointment, patients, procedures, ma
           <div><Label>Data do Próximo Retorno Principal</Label><Input type="date" value={formData.next_return_date} onChange={e => setFormData({ ...formData, next_return_date: e.target.value })} /></div>
         </div>
 
-        {/* Procedures */}
         <div><Label className="mb-3 block">Procedimentos Realizados</Label><div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{procedures.filter(p => p.is_active !== false).map(proc => (<div key={proc.id} onClick={() => toggleProcedure(proc)} className={`p-3 rounded-lg border cursor-pointer transition-colors ${formData.procedures_performed.find(p => p.procedure_id === proc.id) ? 'border-stone-800 bg-stone-50' : 'border-stone-200 hover:border-stone-300'}`}><p className="text-sm font-medium text-stone-700">{proc.name}</p><p className="text-xs text-stone-500">R$ {(proc.default_price || 0).toFixed(2)}</p></div>))}</div></div>
 
-        {/* Materials */}
         <div><Label className="mb-3 block">Materiais Utilizados</Label><Select onValueChange={(v) => addMaterial(materials.find(m => m.id === v))}><SelectTrigger><SelectValue placeholder="Adicionar material" /></SelectTrigger><SelectContent>{materials.filter(m => m.is_active !== false).map(mat => <SelectItem key={mat.id} value={mat.id}>{mat.name} - R$ {(mat.cost_per_unit || 0).toFixed(2)}/{mat.unit || 'un'}</SelectItem>)}</SelectContent></Select>
           {formData.materials_used.length > 0 && <div className="mt-3 space-y-2">{formData.materials_used.map(mat => (<div key={mat.material_id} className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-100"><span className="flex-1 text-sm text-stone-700">{mat.material_name}</span><Input type="number" value={mat.quantity} onChange={e => updateMaterialQuantity(mat.material_id, e.target.value)} className="w-20" min="0" step="0.1" /><span className="text-sm text-amber-700 font-medium w-24 text-right">R$ {(mat.cost * mat.quantity).toFixed(2)}</span><Button type="button" variant="ghost" size="sm" onClick={() => removeMaterial(mat.material_id)}><X className="w-4 h-4" /></Button></div>))}</div>}
         </div>
 
-        {/* Payment */}
         <div className="p-4 bg-stone-50 rounded-xl space-y-4"><h4 className="font-medium text-stone-700 flex items-center gap-2"><CreditCard className="w-4 h-4" /> Pagamento</h4><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div><Label>Forma de Pagamento</Label><Select value={formData.payment_method} onValueChange={handlePaymentMethodChange}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
           {isDiscountPayment && <div><Label>Desconto à Vista (%)</Label><Input type="number" min="0" max="100" step="0.1" value={formData.discount_percent} onChange={e => handleDiscountChange(e.target.value)} placeholder="0" /></div>}
           {isInstallmentPayment && <div><Label>Parcelas</Label><Select value={formData.installments.toString()} onValueChange={handleInstallmentsChange}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{[1,2,3,4,5,6,7,8,9,10,11,12].map(n => <SelectItem key={n} value={n.toString()}>{n}x</SelectItem>)}</SelectContent></Select></div>}
         </div></div>
 
-        {/* Totals */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-stone-100 rounded-xl"><div><p className="text-xs text-stone-500">Valor Bruto</p><p className="text-lg font-light text-stone-800">R$ {(formData.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div><div><p className="text-xs text-stone-500">Custo Materiais</p><p className="text-lg font-light text-amber-600">R$ {(formData.total_material_cost || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>{formData.discount_percent > 0 && <div><p className="text-xs text-stone-500">Desconto ({formData.discount_percent}%)</p><p className="text-lg font-light text-rose-600">-R$ {(formData.discount_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>}<div><p className="text-xs text-stone-500">Valor Final</p><p className="text-lg font-medium text-stone-800">R$ {(formData.final_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {isInstallmentPayment && formData.installments > 1 && <span className="text-xs text-stone-500 block">{formData.installments}x de R$ {(formData.installment_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}</p></div></div>
 
         <div className="flex justify-end gap-3 pt-4"><Button type="button" variant="outline" onClick={onClose}>Cancelar</Button><Button type="submit" disabled={isLoading} className="bg-stone-800 hover:bg-stone-900">{isLoading ? 'Salvando...' : 'Salvar'}</Button></div>

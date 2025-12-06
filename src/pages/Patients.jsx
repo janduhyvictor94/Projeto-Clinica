@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/supabase.js'; // Conexão Supabase
+import { supabase } from '@/supabase.js';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,6 @@ import {
 const ORIGINS = ['Instagram', 'Facebook', 'TikTok', 'YouTube', 'Indicação', 'Google', 'Campanha', 'Post', 'Video', 'Outro'];
 const GENDERS = ['Feminino', 'Masculino', 'Outro'];
 
-// Função para formatar datas com segurança (evita tela branca)
 const safeFormat = (dateStr) => {
   if (!dateStr) return null;
   const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
@@ -48,7 +47,6 @@ export default function Patients() {
     }
   }, []);
 
-  // --- QUERIES SUPABASE ---
   const { data: patients = [], isLoading } = useQuery({
     queryKey: ['patients'],
     queryFn: async () => {
@@ -57,14 +55,11 @@ export default function Patients() {
     },
   });
 
-  // --- MUTAÇÕES SUPABASE ---
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      // Limpeza de dados para evitar erro no banco
       const cleanData = { ...data };
       if (!cleanData.birth_date) cleanData.birth_date = null;
       if (!cleanData.next_return_date) cleanData.next_return_date = null;
-      // Garante que array venha correto
       if (!cleanData.scheduled_returns) cleanData.scheduled_returns = [];
 
       const { error } = await supabase.from('patients').insert([cleanData]);
@@ -125,7 +120,6 @@ export default function Patients() {
         }
       />
 
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
         <Input
@@ -136,7 +130,6 @@ export default function Patients() {
         />
       </div>
 
-      {/* Patients List */}
       <div className="grid gap-2 sm:gap-4">
         {filteredPatients.map((patient) => (
           <Card key={patient.id} className="bg-white border-stone-100 hover:shadow-sm transition-shadow">
@@ -166,7 +159,6 @@ export default function Patients() {
                       </span>
                     )}
                   </div>
-                  {/* Retornos programados */}
                   {(patient.next_return_date || (patient.scheduled_returns && patient.scheduled_returns.length > 0)) && (
                     <div className="flex flex-wrap gap-1 sm:gap-2 mt-2">
                       {patient.next_return_date && (
@@ -220,7 +212,6 @@ export default function Patients() {
         )}
       </div>
 
-      {/* Create/Edit Modal */}
       <PatientModal
         open={isOpen || !!editingPatient}
         onClose={() => {
@@ -238,7 +229,6 @@ export default function Patients() {
         isLoading={createMutation.isPending || updateMutation.isPending}
       />
 
-      {/* Delete Confirmation */}
       <AlertDialog open={!!deletePatient} onOpenChange={() => setDeletePatient(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

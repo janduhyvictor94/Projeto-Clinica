@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '@/supabase.js'; // <-- MUDANÇA: Conexão Supabase
+import { supabase } from '@/supabase.js';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import StatCard from '@/components/ui/StatCard';
@@ -47,7 +47,6 @@ export default function Financial() {
   const urlParams = new URLSearchParams(window.location.search);
   const defaultTab = urlParams.get('tab') || 'overview';
 
-  // --- QUERIES ADAPTADAS PARA SUPABASE ---
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments'],
     queryFn: async () => {
@@ -72,7 +71,6 @@ export default function Financial() {
     },
   });
 
-  // --- MUTAÇÕES ADAPTADAS ---
   const createMutation = useMutation({
     mutationFn: async (data) => {
       const { error } = await supabase.from('expenses').insert([data]);
@@ -120,11 +118,10 @@ export default function Financial() {
     },
   });
 
-  // --- LÓGICA DE NEGÓCIO MANTIDA ---
   const togglePaid = (expense) => {
     updateMutation.mutate({
       id: expense.id,
-      data: { is_paid: !expense.is_paid, payment_date: !expense.is_paid ? format(new Date(), 'yyyy-MM-dd') : null } // Removido spread ...expense pois update só precisa dos campos alterados
+      data: { is_paid: !expense.is_paid, payment_date: !expense.is_paid ? format(new Date(), 'yyyy-MM-dd') : null }
     });
   };
 
@@ -162,7 +159,7 @@ export default function Financial() {
 
   const filteredAppointments = appointments.filter(a => {
     if (!a.date) return false;
-    const date = new Date(a.date + 'T12:00:00'); // Ajuste fuso
+    const date = new Date(a.date + 'T12:00:00');
     return isWithinInterval(date, { start, end }) && a.status === 'Realizado';
   });
 
@@ -178,18 +175,15 @@ export default function Financial() {
     return isWithinInterval(date, { start, end });
   });
 
-  // Calcular receita considerando pagamentos parcelados
   const calculateRevenue = () => {
     let revenue = 0;
     
-    // Receitas à vista (não parceladas)
     filteredAppointments.forEach(a => {
       if (a.payment_method !== 'Cartão Crédito' || !a.installments || a.installments <= 1) {
         revenue += Number(a.final_value) || Number(a.total_value) || 0;
       }
     });
     
-    // Parcelas recebidas no período
     filteredInstallments.forEach(i => {
       if (i.is_received) {
         revenue += Number(i.value) || 0;
@@ -199,7 +193,6 @@ export default function Financial() {
     return revenue;
   };
 
-  // Parcelas a receber no período
   const pendingInstallments = filteredInstallments.filter(i => !i.is_received);
   const pendingInstallmentsValue = pendingInstallments.reduce((sum, i) => sum + (Number(i.value) || 0), 0);
 
@@ -208,7 +201,6 @@ export default function Financial() {
   const totalMaterialCost = filteredAppointments.reduce((sum, a) => sum + (Number(a.total_material_cost) || 0), 0);
   const profit = totalRevenue - totalExpenses - totalMaterialCost;
 
-  // Chart data - monthly summary
   const getChartData = () => {
     const months = [];
     for (let i = 0; i < 12; i++) {
@@ -217,7 +209,6 @@ export default function Financial() {
       
       let monthRevenue = 0;
       
-      // À vista
       appointments.filter(a => {
         if (!a.date) return false;
         const date = new Date(a.date + 'T12:00:00');
@@ -228,7 +219,6 @@ export default function Financial() {
         monthRevenue += Number(a.final_value) || Number(a.total_value) || 0;
       });
 
-      // Parcelas recebidas
       installments.filter(i => {
         if (!i.due_date) return false;
         const date = new Date(i.due_date + 'T12:00:00');
@@ -272,7 +262,6 @@ export default function Financial() {
         }
       />
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-3 p-4 bg-white rounded-xl border border-stone-100">
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-32">
@@ -342,7 +331,6 @@ export default function Financial() {
         )}
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Faturamento"
@@ -491,7 +479,6 @@ export default function Financial() {
         </TabsContent>
       </Tabs>
 
-      {/* Create/Edit Modal */}
       <ExpenseModal
         open={isOpen || !!editingExpense}
         onClose={() => {
@@ -509,7 +496,6 @@ export default function Financial() {
         isLoading={createMutation.isPending || updateMutation.isPending}
       />
 
-      {/* Delete Confirmation */}
       <AlertDialog open={!!deleteExpense} onOpenChange={() => setDeleteExpense(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

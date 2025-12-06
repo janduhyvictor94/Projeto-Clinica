@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { supabase } from '@/supabase.js'; // Conexão Supabase
+import { supabase } from '@/supabase.js';
 import { useQuery } from '@tanstack/react-query';
-import { startOfMonth, endOfMonth, isWithinInterval, addDays } from 'date-fns';
+import { startOfMonth, endOfMonth, isWithinInterval, addDays, format } from 'date-fns'; // Adicionado format aqui
 import PageHeader from '@/components/ui/PageHeader';
 import StatCard from '@/components/ui/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +17,6 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  // --- QUERIES SUPABASE (Substituindo base44) ---
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments'],
     queryFn: async () => {
@@ -42,13 +41,11 @@ export default function Dashboard() {
     },
   });
 
-  // --- LÓGICA ORIGINAL MANTIDA ---
   const monthStart = startOfMonth(new Date(selectedYear, selectedMonth));
   const monthEnd = endOfMonth(new Date(selectedYear, selectedMonth));
 
   const monthAppointments = appointments.filter(a => {
     if (!a.date) return false;
-    // Ajuste de fuso horário para garantir comparação correta
     const date = new Date(a.date.includes('T') ? a.date : a.date + 'T12:00:00');
     return isWithinInterval(date, { start: monthStart, end: monthEnd }) && a.status === 'Realizado';
   });
@@ -84,7 +81,6 @@ export default function Dashboard() {
       const returnDate = new Date(p.next_return_date.includes('T') ? p.next_return_date : p.next_return_date + 'T12:00:00');
       const today = new Date();
       const fifteenDaysFromNow = addDays(today, 15);
-      // Verifica se a data é válida e está no intervalo
       return returnDate >= today && returnDate <= fifteenDaysFromNow;
     })
     .sort((a, b) => new Date(a.next_return_date) - new Date(b.next_return_date));
@@ -127,7 +123,6 @@ export default function Dashboard() {
         }
       />
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <StatCard
           title="Faturamento"
@@ -153,7 +148,6 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {/* Patients Stats */}
         <Card className="bg-white border-stone-100 shadow-sm">
           <CardHeader className="pb-2 p-4 sm:p-6 sm:pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium text-stone-600">Pacientes do Mês</CardTitle>
@@ -182,7 +176,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Gender Distribution */}
         <Card className="bg-white border-stone-100 shadow-sm">
           <CardHeader className="pb-2 p-4 sm:p-6 sm:pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium text-stone-600">Gênero dos Pacientes</CardTitle>
@@ -225,7 +218,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Upcoming Returns */}
         <Card className="bg-white border-stone-100 shadow-sm sm:col-span-2 lg:col-span-1">
           <CardHeader className="pb-2 p-4 sm:p-6 sm:pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-xs sm:text-sm font-medium text-stone-600 flex items-center gap-2">
@@ -257,7 +249,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <Link to={createPageUrl('Patients') + '?action=new'}>
           <div className="p-3 sm:p-4 bg-white rounded-xl border border-stone-100 hover:border-stone-300 transition-colors cursor-pointer group shadow-sm">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '@/supabase.js'; // Conexão Supabase
+import { supabase } from '@/supabase.js';
 import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import StatCard from '@/components/ui/StatCard';
@@ -19,7 +19,6 @@ export default function Reports() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // --- QUERIES SUPABASE ---
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments'],
     queryFn: async () => {
@@ -72,19 +71,16 @@ export default function Reports() {
     return isWithinInterval(date, { start, end }) && a.status === 'Realizado';
   });
 
-  // Métricas de pacientes (Assumindo que is_new_patient vem do banco ou calculado)
   const newPatients = filteredAppointments.filter(a => a.is_new_patient).length;
   const returningPatients = filteredAppointments.filter(a => !a.is_new_patient).length;
 
-  // Custo de materiais no período
   const filteredMovements = stockMovements.filter(m => {
-    if (!m.created_at) return false; // Usando created_at ou date
+    if (!m.created_at) return false;
     const date = new Date(m.created_at);
     return isWithinInterval(date, { start, end }) && m.type === 'saida';
   });
   const totalMaterialCost = filteredMovements.reduce((sum, m) => sum + (Number(m.total_cost) || 0), 0);
 
-  // Materiais mais usados
   const materialUsage = filteredMovements.reduce((acc, m) => {
     const name = m.material_name || 'Desconhecido';
     if (!acc[name]) {
@@ -100,9 +96,8 @@ export default function Reports() {
     .sort((a, b) => b.cost - a.cost)
     .slice(0, 10);
 
-  // Procedimentos mais executados
   const procedureStats = filteredAppointments.reduce((acc, a) => {
-    const procs = a.procedures_performed; // JSON no Supabase
+    const procs = a.procedures_performed;
     if (procs && Array.isArray(procs) && procs.length > 0) {
       procs.forEach(p => {
         if (!acc[p.procedure_name]) {
@@ -111,7 +106,6 @@ export default function Reports() {
         acc[p.procedure_name].count++;
         acc[p.procedure_name].revenue += Number(p.price) || 0;
       });
-      // Distribuir custo de materiais
       const materialCost = Number(a.total_material_cost) || 0;
       const procedureCount = procs.length;
       procs.forEach(p => {
@@ -130,7 +124,6 @@ export default function Reports() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
-  // Métricas por gênero (Cruzando com tabela de pacientes)
   const genderStats = filteredAppointments.reduce((acc, a) => {
     const patient = patients.find(p => p.id === a.patient_id);
     const gender = patient?.gender || 'Outro';
@@ -154,7 +147,6 @@ export default function Reports() {
     value: data.count,
   }));
 
-  // Métricas por origem
   const originStats = filteredAppointments.reduce((acc, a) => {
     const patient = patients.find(p => p.id === a.patient_id);
     const origin = patient?.origin || 'Outro';
@@ -194,7 +186,6 @@ export default function Reports() {
         subtitle="Análise de métricas e desempenho"
       />
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3 p-3 sm:p-4 bg-white rounded-xl border border-stone-100">
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-full sm:w-32 text-sm">
@@ -264,7 +255,6 @@ export default function Reports() {
         )}
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-4">
         <StatCard
           title="Novos"
@@ -293,7 +283,6 @@ export default function Reports() {
         />
       </div>
 
-      {/* Key Insights */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <Card className="bg-gradient-to-br from-stone-800 to-stone-900 text-white border-0">
           <CardContent className="p-4 sm:p-6">
@@ -315,9 +304,7 @@ export default function Reports() {
         </Card>
       </div>
 
-      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* Gender Distribution */}
         <Card className="bg-white border-stone-100">
           <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
             <CardTitle className="text-base sm:text-lg font-medium">Pacientes por Gênero</CardTitle>
@@ -352,7 +339,6 @@ export default function Reports() {
           </CardContent>
         </Card>
 
-        {/* Gender Revenue */}
         <Card className="bg-white border-stone-100">
           <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
             <CardTitle className="text-base sm:text-lg font-medium">Faturamento por Gênero</CardTitle>
@@ -386,7 +372,6 @@ export default function Reports() {
         </Card>
       </div>
 
-      {/* Origin Chart */}
       <Card className="bg-white border-stone-100">
         <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
           <CardTitle className="text-base sm:text-lg font-medium">Desempenho por Canal</CardTitle>
@@ -421,7 +406,6 @@ export default function Reports() {
         </CardContent>
       </Card>
 
-      {/* Material Usage */}
       <Card className="bg-white border-stone-100">
         <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
           <CardTitle className="text-base sm:text-lg font-medium">Materiais Mais Utilizados</CardTitle>

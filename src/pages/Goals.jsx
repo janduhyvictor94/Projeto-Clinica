@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '@/supabase.js'; // Conexão Supabase
+import { supabase } from '@/supabase.js';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Plus, Edit2, Trash2, Target, Check, TrendingUp } from 'lucide-react';
+import { Plus, Edit2, Trash2, Target, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -33,7 +33,6 @@ export default function Goals() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const queryClient = useQueryClient();
 
-  // --- QUERIES SUPABASE ---
   const { data: goals = [] } = useQuery({
     queryKey: ['goals'],
     queryFn: async () => {
@@ -50,7 +49,6 @@ export default function Goals() {
     },
   });
 
-  // --- MUTAÇÕES SUPABASE ---
   const createMutation = useMutation({
     mutationFn: async (data) => {
       const { error } = await supabase.from('goals').insert([data]);
@@ -89,7 +87,6 @@ export default function Goals() {
 
   const filteredGoals = goals.filter(g => g.year === selectedYear);
 
-  // --- LÓGICA DE CÁLCULO MANTIDA ---
   const calculateCurrentValue = (goal) => {
     const monthAppointments = appointments.filter(a => {
       if (!a.date) return false;
@@ -99,19 +96,16 @@ export default function Goals() {
 
     switch (goal.type) {
       case 'Faturamento':
-        // Soma final_value (novo campo) ou total_value
         return monthAppointments.reduce((sum, a) => sum + (Number(a.final_value) || Number(a.total_value) || 0), 0);
       case 'Pacientes':
         return new Set(monthAppointments.map(a => a.patient_id)).size;
       case 'Procedimentos':
-        // Conta procedimentos do JSON
         return monthAppointments.reduce((sum, a) => {
-            // Se for array (JSON), conta o tamanho. Se não, 0.
             const procs = Array.isArray(a.procedures_performed) ? a.procedures_performed : [];
             return sum + procs.length;
         }, 0);
       default:
-        return goal.target_value || 0; // Se for 'Outro', assume que atingiu (ou poderia ter um campo manual)
+        return goal.target_value || 0; 
     }
   };
 
@@ -129,7 +123,6 @@ export default function Goals() {
     'Outro': 'bg-stone-100 text-stone-700',
   };
 
-  // Group goals by month
   const goalsByMonth = filteredGoals.reduce((acc, goal) => {
     const month = goal.month;
     if (!acc[month]) acc[month] = [];
@@ -162,7 +155,6 @@ export default function Goals() {
         }
       />
 
-      {/* Goals by Month */}
       <div className="space-y-4 sm:space-y-6">
         {months.map((monthName, monthIndex) => {
           const monthGoals = goalsByMonth[monthIndex + 1] || [];
@@ -262,7 +254,6 @@ export default function Goals() {
         )}
       </div>
 
-      {/* Create/Edit Modal */}
       <GoalModal
         open={isOpen || !!editingGoal}
         onClose={() => {
@@ -280,7 +271,6 @@ export default function Goals() {
         isLoading={createMutation.isPending || updateMutation.isPending}
       />
 
-      {/* Delete Confirmation */}
       <AlertDialog open={!!deleteGoal} onOpenChange={() => setDeleteGoal(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -5,43 +5,39 @@ import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea'; // Adicionado Textarea que faltava no import
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Syringe, Package, DollarSign, Archive, Edit2 } from 'lucide-react'; // Adicionado Edit2
+import { Plus, Trash2, Syringe, Package, DollarSign, Archive, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog";
 
 export default function Settings() {
   const [procModal, setProcModal] = useState(false);
   const [matModal, setMatModal] = useState(false);
-  const [editingProcedure, setEditingProcedure] = useState(null); // Estado para edição
-  const [editingMaterial, setEditingMaterial] = useState(null);   // Estado para edição
+  const [editingProcedure, setEditingProcedure] = useState(null);
+  const [editingMaterial, setEditingMaterial] = useState(null);
   const [deleteItem, setDeleteItem] = useState(null);
   const queryClient = useQueryClient();
 
-  // --- QUERIES ---
   const { data: procedures = [] } = useQuery({ queryKey: ['procedures'], queryFn: async () => (await supabase.from('procedures').select('*').order('name')).data || [] });
   const { data: materials = [] } = useQuery({ queryKey: ['materials'], queryFn: async () => (await supabase.from('materials').select('*').order('name')).data || [] });
 
-  // --- MUTATIONS PROCEDIMENTOS ---
   const createProcMutation = useMutation({ mutationFn: async (data) => { await supabase.from('procedures').insert([data]); }, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['procedures'] }); setProcModal(false); toast.success('Procedimento salvo!'); } });
   
-  const updateProcMutation = useMutation({ // Mutação de update que faltava
+  const updateProcMutation = useMutation({
     mutationFn: async ({ id, data }) => { await supabase.from('procedures').update(data).eq('id', id); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['procedures'] }); setEditingProcedure(null); toast.success('Atualizado!'); } 
   });
 
-  // --- MUTATIONS MATERIAIS ---
   const createMatMutation = useMutation({ mutationFn: async (data) => { await supabase.from('materials').insert([data]); }, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['materials'] }); setMatModal(false); toast.success('Material salvo!'); } });
   
-  const updateMatMutation = useMutation({ // Mutação de update que faltava
+  const updateMatMutation = useMutation({
     mutationFn: async ({ id, data }) => { await supabase.from('materials').update(data).eq('id', id); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['materials'] }); setEditingMaterial(null); toast.success('Atualizado!'); } 
   });
 
-  // --- DELETE ---
   const deleteMutation = useMutation({
     mutationFn: async ({ id, type }) => { await supabase.from(type === 'proc' ? 'procedures' : 'materials').delete().eq('id', id); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['procedures'] }); queryClient.invalidateQueries({ queryKey: ['materials'] }); setDeleteItem(null); toast.success('Item excluído!'); }
@@ -103,7 +99,6 @@ export default function Settings() {
         </TabsContent>
       </Tabs>
 
-      {/* MODAL DE PROCEDIMENTO (Completo) */}
       <ProcedureModal 
         open={procModal || !!editingProcedure} 
         onClose={() => { setProcModal(false); setEditingProcedure(null); }} 
@@ -112,7 +107,6 @@ export default function Settings() {
         isLoading={createProcMutation.isPending || updateProcMutation.isPending} 
       />
 
-      {/* MODAL DE MATERIAL (Completo - Igual ao que você mandou) */}
       <MaterialModal 
         open={matModal || !!editingMaterial} 
         onClose={() => { setMatModal(false); setEditingMaterial(null); }} 
@@ -126,7 +120,6 @@ export default function Settings() {
   );
 }
 
-// --- MODAL DE PROCEDIMENTO ---
 function ProcedureModal({ open, onClose, procedure, onSave, isLoading }) {
   const [formData, setFormData] = useState({ name: '', description: '', default_price: '', duration_minutes: '' });
 
@@ -158,7 +151,6 @@ function ProcedureModal({ open, onClose, procedure, onSave, isLoading }) {
   );
 }
 
-// --- MODAL DE MATERIAL (SEU CÓDIGO ORIGINAL) ---
 function MaterialModal({ open, onClose, material, onSave, isLoading }) {
   const [formData, setFormData] = useState({ name: '', description: '', unit: '', cost_per_unit: '', stock_quantity: '' });
 

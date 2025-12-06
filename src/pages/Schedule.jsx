@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '@/supabase.js'; // Conexão Supabase
+import { supabase } from '@/supabase.js';
 import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,6 @@ export default function Schedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
 
-  // --- BUSCANDO AGENDAMENTOS NO SUPABASE ---
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments'],
     queryFn: async () => {
@@ -43,7 +42,6 @@ export default function Schedule() {
   const getAppointmentsForDay = (date) => {
     return appointments.filter(a => {
         if (!a.date) return false;
-        // Ajuste de fuso horário para garantir comparação correta
         const appointmentDate = new Date(a.date.includes('T') ? a.date : a.date + 'T00:00:00');
         return isSameDay(appointmentDate, date);
     });
@@ -78,7 +76,6 @@ export default function Schedule() {
         }
       />
 
-      {/* Calendar Navigation */}
       <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-stone-100">
         <Button variant="ghost" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
           <ChevronLeft className="w-5 h-5" />
@@ -103,10 +100,8 @@ export default function Schedule() {
         </Button>
       </div>
 
-      {/* Calendar Grid - Desktop */}
       <Card className="bg-white border-stone-100 overflow-hidden hidden md:block">
         <CardContent className="p-0">
-          {/* Week Days Header */}
           <div className="grid grid-cols-7 border-b border-stone-100">
             {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => (
               <div key={d} className="p-3 text-center text-xs font-medium text-stone-500 uppercase tracking-wider">
@@ -115,7 +110,6 @@ export default function Schedule() {
             ))}
           </div>
 
-          {/* Days Grid */}
           <div className="grid grid-cols-7">
             {days.map((date, i) => {
               const dayAppointments = getAppointmentsForDay(date);
@@ -159,10 +153,8 @@ export default function Schedule() {
         </CardContent>
       </Card>
 
-      {/* Calendar Grid - Mobile (Compact) */}
       <Card className="bg-white border-stone-100 overflow-hidden md:hidden">
         <CardContent className="p-0">
-          {/* Week Days Header - Mobile */}
           <div className="grid grid-cols-7 border-b border-stone-100">
             {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
               <div key={i} className="p-2 text-center text-xs font-medium text-stone-500">
@@ -171,7 +163,6 @@ export default function Schedule() {
             ))}
           </div>
 
-          {/* Days Grid - Mobile */}
           <div className="grid grid-cols-7">
             {days.map((date, i) => {
               const dayAppointments = getAppointmentsForDay(date);
@@ -210,7 +201,6 @@ export default function Schedule() {
         </CardContent>
       </Card>
 
-      {/* Mobile: Day's Appointments List */}
       <div className="md:hidden space-y-3">
         <h3 className="text-sm font-medium text-stone-600 flex items-center gap-2">
           <Calendar className="w-4 h-4" />
@@ -219,7 +209,6 @@ export default function Schedule() {
         {appointments
           .filter(a => {
              if(!a.date) return false;
-             // Ajuste de fuso
              const d = new Date(a.date.includes('T') ? a.date : a.date + 'T00:00:00');
              return isSameMonth(d, currentDate);
           })
@@ -246,7 +235,6 @@ export default function Schedule() {
           )}
       </div>
 
-      {/* Legend */}
       <div className="flex flex-wrap gap-4 justify-center">
         {Object.entries(statusColors).map(([status, color]) => (
           <div key={status} className="flex items-center gap-2">
