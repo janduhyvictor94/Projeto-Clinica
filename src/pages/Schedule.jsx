@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '@/supabase.js';
+import { supabase } from '@/supabase.js'; // Conexão Supabase
 import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -20,12 +20,10 @@ export default function Schedule() {
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('appointments')
         .select('*')
         .order('date', { ascending: false });
-      
-      if (error) throw error;
       return data || [];
     },
   });
@@ -43,11 +41,10 @@ export default function Schedule() {
   }
 
   const getAppointmentsForDay = (date) => {
-    // Ajuste de fuso horário simples para garantir comparação correta da data
     return appointments.filter(a => {
         if (!a.date) return false;
-        // O Supabase retorna YYYY-MM-DD, então criamos a data localmente para comparar
-        const appointmentDate = new Date(a.date + 'T00:00:00');
+        // Ajuste de fuso horário para garantir comparação correta
+        const appointmentDate = new Date(a.date.includes('T') ? a.date : a.date + 'T00:00:00');
         return isSameDay(appointmentDate, date);
     });
   };
@@ -222,7 +219,9 @@ export default function Schedule() {
         {appointments
           .filter(a => {
              if(!a.date) return false;
-             return isSameMonth(new Date(a.date + 'T00:00:00'), currentDate);
+             // Ajuste de fuso
+             const d = new Date(a.date.includes('T') ? a.date : a.date + 'T00:00:00');
+             return isSameMonth(d, currentDate);
           })
           .sort((a, b) => new Date(a.date) - new Date(b.date))
           .map((apt) => (
@@ -234,7 +233,7 @@ export default function Schedule() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-stone-800 truncate">{apt.patient_name}</p>
                 <p className="text-xs text-stone-500">
-                  {format(new Date(apt.date + 'T00:00:00'), 'dd/MM')} {apt.time && `às ${apt.time}`}
+                  {format(new Date(apt.date.includes('T') ? apt.date : apt.date + 'T00:00:00'), 'dd/MM')} {apt.time && `às ${apt.time}`}
                 </p>
               </div>
               <Badge className={`${statusColors[apt.status] || 'bg-gray-400'} text-white text-xs`}>
@@ -242,6 +241,9 @@ export default function Schedule() {
               </Badge>
             </div>
           ))}
+          {appointments.length === 0 && (
+             <p className="text-center text-stone-400 py-6 text-sm">Nenhum agendamento carregado</p>
+          )}
       </div>
 
       {/* Legend */}

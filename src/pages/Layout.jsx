@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { createPageUrl } from '../utils';
+import { createPageUrl } from '../utils'; // <-- MUDANÇA: Correção do caminho (../utils)
 import { 
   LayoutDashboard, 
   Users, 

@@ -5,24 +5,43 @@ import PageHeader from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea'; // Adicionado Textarea que faltava no import
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Syringe, Package, DollarSign, Archive } from 'lucide-react';
+import { Plus, Trash2, Syringe, Package, DollarSign, Archive, Edit2 } from 'lucide-react'; // Adicionado Edit2
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "@/components/ui/alert-dialog";
 
 export default function Settings() {
   const [procModal, setProcModal] = useState(false);
   const [matModal, setMatModal] = useState(false);
+  const [editingProcedure, setEditingProcedure] = useState(null); // Estado para edição
+  const [editingMaterial, setEditingMaterial] = useState(null);   // Estado para edição
   const [deleteItem, setDeleteItem] = useState(null);
   const queryClient = useQueryClient();
 
+  // --- QUERIES ---
   const { data: procedures = [] } = useQuery({ queryKey: ['procedures'], queryFn: async () => (await supabase.from('procedures').select('*').order('name')).data || [] });
   const { data: materials = [] } = useQuery({ queryKey: ['materials'], queryFn: async () => (await supabase.from('materials').select('*').order('name')).data || [] });
 
+  // --- MUTATIONS PROCEDIMENTOS ---
   const createProcMutation = useMutation({ mutationFn: async (data) => { await supabase.from('procedures').insert([data]); }, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['procedures'] }); setProcModal(false); toast.success('Procedimento salvo!'); } });
+  
+  const updateProcMutation = useMutation({ // Mutação de update que faltava
+    mutationFn: async ({ id, data }) => { await supabase.from('procedures').update(data).eq('id', id); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['procedures'] }); setEditingProcedure(null); toast.success('Atualizado!'); } 
+  });
+
+  // --- MUTATIONS MATERIAIS ---
   const createMatMutation = useMutation({ mutationFn: async (data) => { await supabase.from('materials').insert([data]); }, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['materials'] }); setMatModal(false); toast.success('Material salvo!'); } });
+  
+  const updateMatMutation = useMutation({ // Mutação de update que faltava
+    mutationFn: async ({ id, data }) => { await supabase.from('materials').update(data).eq('id', id); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['materials'] }); setEditingMaterial(null); toast.success('Atualizado!'); } 
+  });
+
+  // --- DELETE ---
   const deleteMutation = useMutation({
     mutationFn: async ({ id, type }) => { await supabase.from(type === 'proc' ? 'procedures' : 'materials').delete().eq('id', id); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['procedures'] }); queryClient.invalidateQueries({ queryKey: ['materials'] }); setDeleteItem(null); toast.success('Item excluído!'); }
@@ -39,19 +58,19 @@ export default function Settings() {
         </TabsList>
         
         <TabsContent value="procedures" className="mt-6 space-y-4">
-          <div className="flex justify-between items-center bg-blue-50 p-4 rounded-xl border border-blue-100">
-            <div className="flex items-center gap-3 text-blue-800"><div className="p-2 bg-white rounded-full"><Syringe className="w-5 h-5" /></div><div><p className="font-semibold">Catálogo de Procedimentos</p><p className="text-xs opacity-80">{procedures.length} cadastrados</p></div></div>
-            <Button onClick={() => setProcModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"><Plus className="w-4 h-4 mr-2" />Novo</Button>
-          </div>
+          <div className="flex justify-end"><Button onClick={() => setProcModal(true)} className="bg-stone-800 hover:bg-stone-900 shadow-sm"><Plus className="w-4 h-4 mr-2" />Novo Procedimento</Button></div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {procedures.map(p => (
               <Card key={p.id} className="hover:shadow-md transition-all border-stone-100 group">
                 <CardContent className="p-5 flex flex-col gap-3">
                   <div className="flex justify-between items-start">
                     <div className="p-2 bg-stone-50 rounded-lg"><Syringe className="w-5 h-5 text-stone-500" /></div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setDeleteItem({ id: p.id, type: 'proc' })}><Trash2 className="w-4 h-4" /></Button>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-stone-400 hover:text-stone-600 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setEditingProcedure(p)}><Edit2 className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setDeleteItem({ id: p.id, type: 'proc' })}><Trash2 className="w-4 h-4" /></Button>
+                    </div>
                   </div>
-                  <div><h3 className="font-bold text-stone-800 text-lg line-clamp-1" title={p.name}>{p.name}</h3><p className="text-sm text-stone-500 line-clamp-2 min-h-[20px]">{p.description || "Sem descrição"}</p></div>
+                  <div><h3 className="font-bold text-stone-800 text-lg line-clamp-1">{p.name}</h3><p className="text-sm text-stone-500 line-clamp-2 min-h-[20px]">{p.description || "Sem descrição"}</p></div>
                   <div className="pt-3 border-t border-stone-100 flex items-center gap-2 font-medium text-stone-700"><DollarSign className="w-4 h-4 text-emerald-500" />{Number(p.default_price).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</div>
                 </CardContent>
               </Card>
@@ -60,17 +79,17 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="materials" className="mt-6 space-y-4">
-          <div className="flex justify-between items-center bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-            <div className="flex items-center gap-3 text-emerald-800"><div className="p-2 bg-white rounded-full"><Package className="w-5 h-5" /></div><div><p className="font-semibold">Insumos e Produtos</p><p className="text-xs opacity-80">{materials.length} cadastrados</p></div></div>
-            <Button onClick={() => setMatModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"><Plus className="w-4 h-4 mr-2" />Novo</Button>
-          </div>
+          <div className="flex justify-end"><Button onClick={() => setMatModal(true)} className="bg-stone-800 hover:bg-stone-900 shadow-sm"><Plus className="w-4 h-4 mr-2" />Novo Material</Button></div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {materials.map(m => (
               <Card key={m.id} className="hover:shadow-md transition-all border-stone-100 group">
                 <CardContent className="p-5 flex flex-col gap-3">
                   <div className="flex justify-between items-start">
                     <div className="p-2 bg-stone-50 rounded-lg"><Package className="w-5 h-5 text-stone-500" /></div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setDeleteItem({ id: m.id, type: 'mat' })}><Trash2 className="w-4 h-4" /></Button>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-stone-400 hover:text-stone-600 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setEditingMaterial(m)}><Edit2 className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setDeleteItem({ id: m.id, type: 'mat' })}><Trash2 className="w-4 h-4" /></Button>
+                    </div>
                   </div>
                   <div><h3 className="font-bold text-stone-800 text-lg line-clamp-1">{m.name}</h3><div className="flex gap-2 mt-1"><span className="text-xs bg-stone-100 px-2 py-1 rounded text-stone-600">{m.category || 'Geral'}</span></div></div>
                   <div className="pt-3 border-t border-stone-100 flex justify-between items-center">
@@ -84,16 +103,90 @@ export default function Settings() {
         </TabsContent>
       </Tabs>
 
-      <SimpleModal open={procModal} onClose={() => setProcModal(false)} title="Novo Procedimento" onSave={d => createProcMutation.mutate(d)} fields={[{name: 'name', label: 'Nome do Procedimento'}, {name: 'description', label: 'Descrição (Opcional)'}, {name: 'default_price', label: 'Preço Padrão (R$)', type: 'number'}]} />
-      <SimpleModal open={matModal} onClose={() => setMatModal(false)} title="Novo Material" onSave={d => createMatMutation.mutate(d)} fields={[{name: 'name', label: 'Nome do Produto'}, {name: 'category', label: 'Categoria'}, {name: 'unit', label: 'Unidade (ex: ml, un)'}, {name: 'cost_per_unit', label: 'Custo por Unidade (R$)', type: 'number'}, {name: 'stock_quantity', label: 'Estoque Inicial', type: 'number'}]} />
-      <AlertDialog open={!!deleteItem} onOpenChange={() => setDeleteItem(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle><AlertDialogDescription>Tem certeza que deseja excluir este item? Isso pode afetar históricos.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => deleteMutation.mutate(deleteItem)} className="bg-rose-600 hover:bg-rose-700">Sim, Excluir</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      {/* MODAL DE PROCEDIMENTO (Completo) */}
+      <ProcedureModal 
+        open={procModal || !!editingProcedure} 
+        onClose={() => { setProcModal(false); setEditingProcedure(null); }} 
+        procedure={editingProcedure} 
+        onSave={d => { if(editingProcedure) updateProcMutation.mutate({id: editingProcedure.id, data: d}); else createProcMutation.mutate(d); }} 
+        isLoading={createProcMutation.isPending || updateProcMutation.isPending} 
+      />
+
+      {/* MODAL DE MATERIAL (Completo - Igual ao que você mandou) */}
+      <MaterialModal 
+        open={matModal || !!editingMaterial} 
+        onClose={() => { setMatModal(false); setEditingMaterial(null); }} 
+        material={editingMaterial} 
+        onSave={d => { if(editingMaterial) updateMatMutation.mutate({id: editingMaterial.id, data: d}); else createMatMutation.mutate(d); }} 
+        isLoading={createMatMutation.isPending || updateMatMutation.isPending} 
+      />
+
+      <AlertDialog open={!!deleteItem} onOpenChange={() => setDeleteItem(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle><AlertDialogDescription>Tem certeza que deseja excluir este item?</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogAction onClick={() => deleteMutation.mutate(deleteItem)} className="bg-rose-600 hover:bg-rose-700">Sim, Excluir</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>
   );
 }
 
-function SimpleModal({ open, onClose, title, onSave, fields }) {
-  const [data, setData] = useState({});
+// --- MODAL DE PROCEDIMENTO ---
+function ProcedureModal({ open, onClose, procedure, onSave, isLoading }) {
+  const [formData, setFormData] = useState({ name: '', description: '', default_price: '', duration_minutes: '' });
+
+  React.useEffect(() => {
+    if (procedure) {
+      setFormData({ name: procedure.name || '', description: procedure.description || '', default_price: procedure.default_price || '', duration_minutes: procedure.duration_minutes || '' });
+    } else {
+      setFormData({ name: '', description: '', default_price: '', duration_minutes: '' });
+    }
+  }, [procedure, open]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({ ...formData, default_price: parseFloat(formData.default_price) || 0, duration_minutes: parseInt(formData.duration_minutes) || null, is_active: true });
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onClose}><DialogContent className="sm:max-w-[425px]"><DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader><form onSubmit={e => { e.preventDefault(); onSave(data); }} className="space-y-4 py-2">{fields.map(f => (<div key={f.name} className="grid gap-1"><Label>{f.label}</Label><Input type={f.type || 'text'} onChange={e => setData({...data, [f.name]: e.target.value})} required={f.name !== 'description'} /></div>))}<div className="flex justify-end gap-2 pt-2"><Button type="button" variant="outline" onClick={onClose}>Cancelar</Button><Button type="submit" className="bg-stone-800 hover:bg-stone-900">Salvar</Button></div></form></DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={onClose}><DialogContent><DialogHeader><DialogTitle>{procedure ? 'Editar Procedimento' : 'Novo Procedimento'}</DialogTitle></DialogHeader>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div><Label>Nome *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required /></div>
+        <div><Label>Descrição</Label><Textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={2} /></div>
+        <div className="grid grid-cols-2 gap-4">
+          <div><Label>Preço Padrão *</Label><Input type="number" step="0.01" value={formData.default_price} onChange={(e) => setFormData({ ...formData, default_price: e.target.value })} required /></div>
+          <div><Label>Duração (minutos)</Label><Input type="number" value={formData.duration_minutes} onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })} /></div>
+        </div>
+        <div className="flex justify-end gap-3 pt-4"><Button type="button" variant="outline" onClick={onClose}>Cancelar</Button><Button type="submit" disabled={isLoading} className="bg-stone-800 hover:bg-stone-900">{isLoading ? 'Salvando...' : 'Salvar'}</Button></div>
+      </form>
+    </DialogContent></Dialog>
+  );
+}
+
+// --- MODAL DE MATERIAL (SEU CÓDIGO ORIGINAL) ---
+function MaterialModal({ open, onClose, material, onSave, isLoading }) {
+  const [formData, setFormData] = useState({ name: '', description: '', unit: '', cost_per_unit: '', stock_quantity: '' });
+
+  React.useEffect(() => {
+    if (material) {
+      setFormData({ name: material.name || '', description: material.description || '', unit: material.unit || '', cost_per_unit: material.cost_per_unit || '', stock_quantity: material.stock_quantity || '' });
+    } else {
+      setFormData({ name: '', description: '', unit: 'ml', cost_per_unit: '', stock_quantity: '' });
+    }
+  }, [material, open]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({ ...formData, cost_per_unit: parseFloat(formData.cost_per_unit) || 0, stock_quantity: parseFloat(formData.stock_quantity) || 0, is_active: true });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}><DialogContent><DialogHeader><DialogTitle>{material ? 'Editar Material' : 'Novo Material'}</DialogTitle></DialogHeader>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div><Label>Nome *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required /></div>
+        <div><Label>Descrição</Label><Textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={2} /></div>
+        <div className="grid grid-cols-3 gap-4">
+          <div><Label>Unidade</Label><Input value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} placeholder="ml, un, etc" /></div>
+          <div><Label>Custo/Un *</Label><Input type="number" step="0.01" value={formData.cost_per_unit} onChange={(e) => setFormData({ ...formData, cost_per_unit: e.target.value })} required /></div>
+          <div><Label>Estoque</Label><Input type="number" step="0.01" value={formData.stock_quantity} onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })} /></div>
+        </div>
+        <div className="flex justify-end gap-3 pt-4"><Button type="button" variant="outline" onClick={onClose}>Cancelar</Button><Button type="submit" disabled={isLoading} className="bg-stone-800 hover:bg-stone-900">{isLoading ? 'Salvando...' : 'Salvar'}</Button></div>
+      </form>
+    </DialogContent></Dialog>
   );
 }
